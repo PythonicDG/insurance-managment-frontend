@@ -2,16 +2,36 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, Loader2, Info } from "lucide-react";
 import axios from "axios";
 import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
 import { Toast, ToastType } from "@/components/ui/toast";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const router = useRouter();
+  const [username, setUsername] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("insure_remember_user") || "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return Boolean(localStorage.getItem("insure_remember_user"));
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -28,18 +48,19 @@ export default function LoginPage() {
     message: "",
   });
 
-  // Load remembered username if present
+  // Redirect if already authenticated
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("insure_remember_user");
-      if (saved) {
-        setUsername(saved);
-        setRememberMe(true);
+    if (typeof window !== "undefined") {
+      try {
+        const token = localStorage.getItem("insure_token");
+        if (token) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        // Ignore localStorage error
       }
-    } catch {
-      // Ignore localStorage errors in SSR or restricted environments
     }
-  }, []);
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +80,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Use configured Next.js proxy or fallback to backend directly
       const payload = {
         username: trimmedUser,
         password: password,
@@ -72,7 +92,6 @@ export default function LoginPage() {
           timeout: 10000,
         });
       } catch (err: unknown) {
-        // Fallback directly to Django backend if proxy rewrite isn't reachable
         if (axios.isAxiosError(err) && (!err.response || err.code === "ECONNREFUSED")) {
           response = await axios.post("http://127.0.0.1:8000/api/auth/login/", payload, {
             headers: { "Content-Type": "application/json" },
@@ -103,13 +122,16 @@ export default function LoginPage() {
           }
         }
 
-        // Show green success toast notification without redirecting
         setToast({
           open: true,
           type: "success",
           title: "Welcome back!",
-          message: data.message || "Logged in successfully.",
+          message: data.message || "Logged in successfully. Redirecting to dashboard...",
         });
+
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 350);
       }
     } catch (err: unknown) {
       let msg = "Invalid username or password. Please try again.";
@@ -147,7 +169,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen w-full flex flex-col lg:flex-row bg-white font-sans text-slate-900">
+    <main className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-50 lg:bg-white font-sans text-slate-900">
       {/* Toast Notification in top-right corner */}
       <Toast
         open={toast.open}
@@ -157,31 +179,31 @@ export default function LoginPage() {
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
 
-      {/* Left Brand Panel */}
+      {/* Brand Panel: Compact Header on Mobile, Rich Side Panel on Desktop */}
       <AuthBrandPanel />
 
-      {/* Right Login Section */}
-      <section className="flex-1 flex items-center justify-center p-6 sm:p-12 lg:p-16">
-        <div className="w-full max-w-[420px]">
+      {/* Login Form Section */}
+      <section className="flex-1 flex items-center justify-center p-4 sm:p-8 lg:p-12 xl:p-16">
+        <div className="w-full max-w-[420px] bg-white lg:bg-transparent p-6 sm:p-8 lg:p-0 rounded-2xl shadow-xs lg:shadow-none border border-slate-200/80 lg:border-0 my-auto">
           {/* Header */}
-          <div className="mb-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Admin Login
             </h2>
-            <p className="text-sm text-slate-500 mt-2">
-              Sign in to access your insurance ledger dashboard.
+            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Sign in to manage your policy portfolio, customer ledgers, and reports.
             </p>
           </div>
 
-          {/* Error Alert if any */}
+          {/* Error Alert */}
           {errorMessage && (
-            <div className="mb-6 p-3.5 rounded-lg bg-red-50 border border-red-200/80 text-xs text-red-700 leading-relaxed">
+            <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200/80 text-xs text-red-700 leading-relaxed">
               {errorMessage}
             </div>
           )}
 
           {/* Form */}
-          <form onSubmit={handleLogin} className="space-y-5" noValidate>
+          <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5" noValidate>
             {/* Username / Email */}
             <div>
               <label
@@ -204,7 +226,7 @@ export default function LoginPage() {
                   placeholder="you@company.com"
                   required
                   disabled={loading}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -231,12 +253,12 @@ export default function LoginPage() {
                   placeholder="••••••••••••"
                   required
                   disabled={loading}
-                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition disabled:bg-slate-50 disabled:cursor-not-allowed font-medium"
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition disabled:bg-slate-50 disabled:cursor-not-allowed font-medium"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition cursor-pointer"
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1.5 rounded-lg transition cursor-pointer"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
@@ -249,7 +271,7 @@ export default function LoginPage() {
             </div>
 
             {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between pt-0.5">
+            <div className="flex items-center justify-between pt-0.5 flex-wrap gap-2">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -276,7 +298,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-400 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-all duration-150 shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-400 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-all duration-150 shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed min-h-[44px]"
               >
                 {loading ? (
                   <>
@@ -290,12 +312,11 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Admin Note / Single Business Owner */}
-          <div className="mt-8 flex items-start gap-2 text-slate-500">
-            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-            <p className="text-xs leading-relaxed">
-              Single business owner / admin access. Contact support for account
-              issues.
+          {/* Admin Note */}
+          <div className="mt-6 sm:mt-8 flex items-start gap-2 text-slate-500 bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border border-slate-200/60 sm:border-0">
+            <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+            <p className="text-xs leading-relaxed text-slate-500">
+              Single business owner / admin access. Contact support for account issues.
             </p>
           </div>
         </div>
