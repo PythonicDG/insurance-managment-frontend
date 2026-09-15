@@ -69,6 +69,92 @@ export interface UserProfile {
   email: string;
 }
 
+export interface CustomerSummary {
+  id?: number;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+}
+
+export interface VehicleSummary {
+  id?: number;
+  vehicle_type: string;
+  vehicle_number: string;
+}
+
+export interface InsuranceCompanySummary {
+  id?: number;
+  name: string;
+  is_active?: boolean;
+}
+
+export interface InsuranceDocumentItem {
+  id: number;
+  record?: number;
+  file?: string;
+  file_url?: string;
+  document_name: string;
+  file_size?: number;
+  uploaded_at: string;
+}
+
+export interface PaymentTransaction {
+  id: string | number;
+  date: string;
+  payment_mode: string;
+  amount: number;
+  note: string;
+  is_outstanding?: boolean;
+}
+
+export interface InsuranceRecordItem {
+  id: number;
+  policy_number: string;
+  entry_date: string;
+  policy_start_date: string;
+  policy_expiry_date: string;
+  total_premium: number | string;
+  paid_amount?: number;
+  balance?: number;
+  remarks?: string;
+  customer: CustomerSummary;
+  vehicle: VehicleSummary;
+  insurance_company: InsuranceCompanySummary;
+  vehicle_class?: string;
+  is_expired?: boolean;
+  days_left?: number;
+  status?: "active" | "expiring_soon" | "expired" | string;
+  documents_count?: number;
+  documents?: InsuranceDocumentItem[];
+  transactions?: PaymentTransaction[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InsuranceRecordListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: InsuranceRecordItem[];
+}
+
+export interface InsuranceRecordPayload {
+  policy_number: string;
+  insurance_company_id: number;
+  customer_name: string;
+  customer_phone: string;
+  customer_email?: string;
+  customer_address?: string;
+  vehicle_number: string;
+  vehicle_type?: string;
+  policy_start_date: string;
+  policy_expiry_date: string;
+  entry_date?: string;
+  total_premium: number;
+  remarks?: string;
+}
+
 // API Services
 export const companyService = {
   async getAll(params?: { search?: string; is_active?: string | boolean }): Promise<InsuranceCompany[]> {
@@ -173,4 +259,82 @@ export const authService = {
     }
   },
 };
+
+export const insuranceRecordService = {
+  async getAll(
+    params?: Record<string, string | number | boolean | undefined>
+  ): Promise<InsuranceRecordListResponse | InsuranceRecordItem[]> {
+    const response = await apiClient.get("/insurance/records/", { params });
+    return response.data;
+  },
+
+  async getById(id: number): Promise<InsuranceRecordItem> {
+    const response = await apiClient.get<InsuranceRecordItem>(
+      `/insurance/records/${id}/`
+    );
+    return response.data;
+  },
+
+  async create(
+    data: InsuranceRecordPayload
+  ): Promise<{ message: string; data: InsuranceRecordItem }> {
+    const response = await apiClient.post<{
+      message: string;
+      data: InsuranceRecordItem;
+    }>("/insurance/records/", data);
+    return response.data;
+  },
+
+  async update(
+    id: number,
+    data: Partial<InsuranceRecordPayload>
+  ): Promise<{ message: string; data: InsuranceRecordItem }> {
+    const response = await apiClient.patch<{
+      message: string;
+      data: InsuranceRecordItem;
+    }>(`/insurance/records/${id}/`, data);
+    return response.data;
+  },
+
+  async delete(id: number): Promise<{ message: string }> {
+    const response = await apiClient.delete<{ message: string }>(
+      `/insurance/records/${id}/`
+    );
+    return response.data;
+  },
+};
+
+export const insuranceDocumentService = {
+  async upload(
+    recordId: number,
+    file: File,
+    documentName?: string
+  ): Promise<{ message: string; data: InsuranceDocumentItem }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (documentName) {
+      formData.append("document_name", documentName);
+    }
+    const response = await apiClient.post<{
+      message: string;
+      data: InsuranceDocumentItem;
+    }>(`/insurance/records/${recordId}/documents/`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
+
+  async delete(
+    recordId: number,
+    documentId: number
+  ): Promise<{ message: string }> {
+    const response = await apiClient.delete<{ message: string }>(
+      `/insurance/records/${recordId}/documents/${documentId}/`
+    );
+    return response.data;
+  },
+};
+
 
