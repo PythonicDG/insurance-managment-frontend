@@ -682,7 +682,7 @@ function InsuranceRecordsContent() {
       ) : (
         <div className="space-y-4">
           {/* Top Row: Subtitle + Dynamic Backend Counters */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+          {/* <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
             <p className="text-xs sm:text-sm text-slate-500">
               Manage, search and track vehicle policy premium payment statuses
             </p>
@@ -720,7 +720,7 @@ function InsuranceRecordsContent() {
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* Mobile Filter & Search Section (Flipkart / Amazon Style) */}
           <div className="lg:hidden space-y-2.5">

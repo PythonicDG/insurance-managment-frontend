@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Menu,
-  Search,
   ChevronDown,
   Settings as SettingsIcon,
   KeyRound,
@@ -35,7 +34,6 @@ export function Header({
   });
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
@@ -51,14 +49,6 @@ export function Header({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchQuery(val);
-    if (onSearch) {
-      onSearch(val);
-    }
-  };
 
   const handleLogout = async () => {
     if (confirm("Are you sure you want to log out?")) {
@@ -95,22 +85,8 @@ export function Header({
         </h1>
       </div>
 
-      {/* Right Controls: Search & Profile */}
+      {/* Right Controls: Profile */}
       <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
-        {/* Search Bar */}
-        <div className="relative w-32 xs:w-44 sm:w-60 md:w-72">
-          <div className="absolute inset-y-0 left-0 pl-2.5 sm:pl-3 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search records..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="w-full pl-8 sm:pl-9 pr-2.5 py-1.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-          />
-        </div>
-
         {/* User Profile Dropdown */}
         <div className="relative shrink-0" ref={dropdownRef}>
           <button
