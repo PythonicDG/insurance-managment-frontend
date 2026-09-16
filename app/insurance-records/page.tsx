@@ -26,6 +26,7 @@ import { Toast, ToastType } from "@/components/ui/toast";
 import {
   companyService,
   insuranceRecordService,
+  paymentService,
   InsuranceCompany,
   InsuranceRecordItem,
   PaymentTransaction,
@@ -37,53 +38,40 @@ import {
   FilterCategory,
 } from "@/components/insurance/mobile-filters-modal";
 
-// Helper to retrieve recorded payments from localStorage
-function getLocalTransactions(recordId: number): PaymentTransaction[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(`insure_payments_${recordId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-// Helper to save recorded payments to localStorage
-function saveLocalTransaction(recordId: number, tx: PaymentTransaction) {
-  if (typeof window === "undefined") return;
-  try {
-    const existing = getLocalTransactions(recordId);
-    const updated = [tx, ...existing];
-    localStorage.setItem(`insure_payments_${recordId}`, JSON.stringify(updated));
-  } catch {
-    // Ignore localStorage errors
-  }
-}
-
-// Attach local payments and calculate real paid/balance for a record
+// Attach payments and calculate real paid/balance for a record
 function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordItem {
   const total =
     typeof rec.total_premium === "number"
       ? rec.total_premium
       : parseFloat(String(rec.total_premium || 0));
 
-  const localTxs = getLocalTransactions(rec.id);
-  const paidFromTxs = localTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const allTxs = rec.payments || rec.transactions || [];
+
+  const backendPaid =
+    typeof rec.total_paid !== "undefined" && rec.total_paid !== null
+      ? parseFloat(String(rec.total_paid))
+      : typeof rec.paid_amount === "number"
+      ? rec.paid_amount
+      : typeof rec.paid_amount === "string"
+      ? parseFloat(rec.paid_amount)
+      : null;
 
   const paidAmount =
-    localTxs.length > 0
-      ? paidFromTxs
-      : typeof rec.paid_amount === "number" && rec.paid_amount > 0
-      ? rec.paid_amount
-      : 0;
+    backendPaid !== null && !isNaN(backendPaid)
+      ? backendPaid
+      : allTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  const balance = Math.max(0, total - paidAmount);
+  const balance =
+    typeof rec.outstanding !== "undefined" && rec.outstanding !== null
+      ? parseFloat(String(rec.outstanding))
+      : Math.max(0, total - paidAmount);
 
   return {
     ...rec,
     paid_amount: paidAmount,
     balance: balance,
-    transactions: localTxs.length > 0 ? localTxs : rec.transactions || [],
+    payments: allTxs,
+    transactions: allTxs,
   };
 }
 
@@ -334,7 +322,10 @@ function InsuranceRecordsContent() {
 
   // When ?view=<id> query param is present, load that record into detail view
   useEffect(() => {
-    if (!viewId) return;
+    if (!viewId) {
+      setSelectedRecordForDetail(null);
+      return;
+    }
     let active = true;
     const loadRecordForView = async () => {
       try {
@@ -467,7 +458,7 @@ function InsuranceRecordsContent() {
     setIsPaymentModalOpen(true);
   };
 
-  const handleSavePayment = (paymentData: {
+  const handleSavePayment = async (paymentData: {
     recordId: number;
     paymentType: "full" | "partial";
     amount: number;
@@ -494,39 +485,59 @@ function InsuranceRecordsContent() {
       return;
     }
 
-    const newTx: PaymentTransaction = {
-      id: Date.now(),
-      date: paymentData.paymentDate,
-      payment_mode: paymentData.paymentMode,
-      amount: payAmount,
-      note: paymentData.remark || "Payment recorded",
-      is_outstanding: false,
-    };
+    try {
+      await paymentService.create({
+        recordId: paymentData.recordId,
+        amount: payAmount,
+        payment_mode: paymentData.paymentMode,
+        payment_date: paymentData.paymentDate,
+        notes: paymentData.remark || "Payment recorded",
+      });
 
-    saveLocalTransaction(paymentData.recordId, newTx);
-
-    // Refresh records to recalculate balances
-    setRecords((prev) =>
-      prev.map((rec) => {
-        if (rec.id === paymentData.recordId) {
-          const updated = augmentRecordWithPayments(rec);
-          return updated;
+      // Clear legacy localStorage cache for this record if any exists
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(`insure_payments_${paymentData.recordId}`);
+        } catch {
+          // ignore
         }
-        return rec;
-      })
-    );
+      }
 
-    if (selectedRecordForDetail && selectedRecordForDetail.id === paymentData.recordId) {
-      setSelectedRecordForDetail(augmentRecordWithPayments(selectedRecordForDetail));
+      // Refresh records from backend
+      await fetchRecords(currentPage);
+      if (selectedRecordForDetail && selectedRecordForDetail.id === paymentData.recordId) {
+        try {
+          const freshDetail = await insuranceRecordService.getById(paymentData.recordId);
+          setSelectedRecordForDetail(augmentRecordWithPayments(freshDetail));
+        } catch {
+          // ignore
+        }
+      }
+
+      fetchSummaryCounts();
+
+      showToast(
+        "success",
+        "Payment Recorded",
+        `Payment of ₹${payAmount.toLocaleString("en-IN")} recorded successfully.`
+      );
+    } catch {
+      showToast("error", "Payment Failed", "Could not record payment. Please try again.");
     }
+  };
 
-    fetchSummaryCounts();
-
-    showToast(
-      "success",
-      "Payment Recorded",
-      `Payment of ₹${payAmount.toLocaleString("en-IN")} recorded successfully.`
-    );
+  // View Record Details Handler
+  const handleViewRecord = async (record: InsuranceRecordItem) => {
+    setSelectedRecordForDetail(augmentRecordWithPayments(record));
+    router.push(`/insurance-records?view=${record.id}`);
+    try {
+      const fullDetail = await insuranceRecordService.getById(record.id);
+      if (fullDetail) {
+        setSelectedRecordForDetail(augmentRecordWithPayments(fullDetail));
+      }
+    } catch {
+      // Keep initial record if request fails
+    }
   };
 
   // Add / Edit Record Navigation Handlers
@@ -663,9 +674,7 @@ function InsuranceRecordsContent() {
           record={selectedRecordForDetail}
           onBack={() => {
             setSelectedRecordForDetail(null);
-            if (viewId) {
-              router.replace("/insurance-records");
-            }
+            router.push("/insurance-records");
           }}
           onEdit={handleOpenEditModal}
           onMakePayment={handleOpenPaymentModal}
@@ -1228,7 +1237,7 @@ function InsuranceRecordsContent() {
                               {/* View Details */}
                               <button
                                 type="button"
-                                onClick={() => setSelectedRecordForDetail(record)}
+                                onClick={() => handleViewRecord(record)}
                                 className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
                                 title="View Record Details"
                               >

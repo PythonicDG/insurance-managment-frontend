@@ -16,26 +16,16 @@ import {
   companyService,
   insuranceRecordService,
   insuranceDocumentService,
+  paymentService,
   InsuranceCompany,
   InsuranceRecordItem,
-  PaymentTransaction,
+  InsuranceRecordPayload,
+  CustomerSummary,
   extractApiError,
 } from "@/lib/api";
 import { PolicyDuplicateAlert } from "@/components/insurance/policy-duplicate-alert";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
-
-// Helper to save payment transaction to localStorage
-function saveLocalTransaction(recordId: number, tx: PaymentTransaction) {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(`insure_payments_${recordId}`);
-    const existing = raw ? JSON.parse(raw) : [];
-    const updated = [tx, ...existing];
-    localStorage.setItem(`insure_payments_${recordId}`, JSON.stringify(updated));
-  } catch {
-    // Ignore localStorage errors
-  }
-}
+import { CustomerLookupSection } from "@/components/insurance/customer-lookup-section";
 
 function AddInsuranceRecordForm() {
   const router = useRouter();
@@ -47,6 +37,8 @@ function AddInsuranceRecordForm() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
+  const [isDifferentPerson, setIsDifferentPerson] = useState(false);
 
   // Form State - Vehicle Details
   const [vehicleType, setVehicleType] = useState("Car");
@@ -131,6 +123,7 @@ function AddInsuranceRecordForm() {
         try {
           const rec = await insuranceRecordService.getById(Number(editId));
           if (active && rec) {
+            setSelectedCustomer(rec.customer || null);
             setCustomerName(rec.customer?.name || "");
             setCustomerPhone(rec.customer?.phone || "");
             setCustomerAddress(rec.customer?.address || "");
@@ -143,22 +136,12 @@ function AddInsuranceRecordForm() {
             if (rec.policy_start_date) setStartDate(rec.policy_start_date);
             if (rec.policy_expiry_date) setEndDate(rec.policy_expiry_date);
             if (rec.total_premium) setTotalPremium(String(rec.total_premium));
-            let loadedPaid = rec.paid_amount ? String(rec.paid_amount) : "";
-            try {
-              const rawTxs = localStorage.getItem(`insure_payments_${editId}`);
-              if (rawTxs) {
-                const parsedTxs = JSON.parse(rawTxs);
-                const sumPaid = parsedTxs.reduce(
-                  (acc: number, t: { amount?: number }) => acc + (Number(t.amount) || 0),
-                  0
-                );
-                if (sumPaid > 0) {
-                  loadedPaid = String(sumPaid);
-                }
-              }
-            } catch {
-              // ignore
-            }
+            const loadedPaid =
+              typeof rec.total_paid !== "undefined" && rec.total_paid !== null
+                ? String(rec.total_paid)
+                : rec.paid_amount
+                ? String(rec.paid_amount)
+                : "";
             if (loadedPaid) setPaidAmount(loadedPaid);
             if (rec.remarks) setRemarks(rec.remarks);
             if (rec.documents && rec.documents.length > 0) {
@@ -384,9 +367,11 @@ function AddInsuranceRecordForm() {
         }
       }
 
-      const payload = {
+      const payload: InsuranceRecordPayload = {
         policy_number: effectivePolicyNumber,
         insurance_company_id: Number(selectedCompanyId) || 1,
+        customer_id: selectedCustomer?.id || selectedCustomer?.customer_id,
+        create_new_customer: isDifferentPerson,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         customer_address: customerAddress.trim() || undefined,
@@ -395,6 +380,9 @@ function AddInsuranceRecordForm() {
         policy_start_date: startDate,
         policy_expiry_date: endDate,
         total_premium: numericPremium,
+        initial_payment: !isEditMode && numericPaid > 0 ? numericPaid : undefined,
+        paid_amount: !isEditMode && numericPaid > 0 ? numericPaid : undefined,
+        initial_payment_method: "Cash / Online",
         remarks: remarks.trim() || undefined,
       };
 
@@ -419,37 +407,20 @@ function AddInsuranceRecordForm() {
         }
       }
 
-      // Record initial payment transaction if paidAmount > 0 on new record
-      if (!isEditMode && numericPaid > 0 && savedRecordId) {
-        const newTx: PaymentTransaction = {
-          id: Date.now(),
-          date: startDate,
-          payment_mode: "Cash / Online",
-          amount: numericPaid,
-          note: "Initial premium payment",
-          is_outstanding: false,
-        };
-        saveLocalTransaction(savedRecordId, newTx);
-      } else if (isEditMode && savedRecordId) {
-        // In edit mode, record adjustment transaction if paidAmount increased
+      // In edit mode, record payment transaction if paidAmount increased
+      if (isEditMode && savedRecordId) {
         try {
-          const raw = localStorage.getItem(`insure_payments_${savedRecordId}`);
-          const existingTxs: PaymentTransaction[] = raw ? JSON.parse(raw) : [];
-          const existingTotalPaid = existingTxs.reduce(
-            (sum: number, t: { amount?: number }) => sum + (Number(t.amount) || 0),
-            0
-          );
-          if (numericPaid > existingTotalPaid) {
-            const diff = numericPaid - existingTotalPaid;
-            const newTx: PaymentTransaction = {
-              id: Date.now(),
-              date: new Date().toISOString().split("T")[0],
-              payment_mode: "Cash / Online",
+          const freshRec = await insuranceRecordService.getById(savedRecordId);
+          const currentPaid = typeof freshRec.total_paid !== "undefined" ? Number(freshRec.total_paid) : (Number(freshRec.paid_amount) || 0);
+          if (numericPaid > currentPaid) {
+            const diff = numericPaid - currentPaid;
+            await paymentService.create({
+              recordId: savedRecordId,
               amount: diff,
-              note: "Payment adjustment",
-              is_outstanding: false,
-            };
-            saveLocalTransaction(savedRecordId, newTx);
+              payment_method: "Cash / Online",
+              payment_date: new Date().toISOString().split("T")[0],
+              notes: "Payment adjustment",
+            });
           }
         } catch {
           // ignore
@@ -532,54 +503,19 @@ function AddInsuranceRecordForm() {
               </div>
             )}
 
-            {/* Card 1: Customer Details */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-4">
-              <h2 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">
-                Customer Details
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Customer Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Enter customer name"
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Phone Number
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="+91 98765-43210"
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Address
-                  </label>
-                  <input
-                    type="text"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    placeholder="Enter full address"
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-              </div>
-            </div>
+            {/* Card 1: Customer Details with Normalized Phone Lookup */}
+            <CustomerLookupSection
+              customerName={customerName}
+              setCustomerName={setCustomerName}
+              customerPhone={customerPhone}
+              setCustomerPhone={setCustomerPhone}
+              customerAddress={customerAddress}
+              setCustomerAddress={setCustomerAddress}
+              selectedCustomer={selectedCustomer}
+              setSelectedCustomer={setSelectedCustomer}
+              isDifferentPerson={isDifferentPerson}
+              setIsDifferentPerson={setIsDifferentPerson}
+            />
 
             {/* Card 2: Vehicle Details */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-4">

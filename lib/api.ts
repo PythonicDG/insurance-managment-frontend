@@ -52,10 +52,23 @@ export interface UserProfile {
 
 export interface CustomerSummary {
   id?: number;
+  customer_id?: number;
   name: string;
   phone: string;
   email?: string;
   address?: string;
+  vehicles_count?: number;
+  vehicles?: VehicleSummary[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CustomerLookupResponse {
+  phone: string;
+  found: boolean;
+  count: number;
+  customers: CustomerSummary[];
+  customer: CustomerSummary | null;
 }
 
 export interface VehicleSummary {
@@ -82,11 +95,20 @@ export interface InsuranceDocumentItem {
 
 export interface PaymentTransaction {
   id: string | number;
-  date: string;
-  payment_mode: string;
-  amount: number;
-  note: string;
+  insurance_record?: number;
+  insurance_record_id?: number;
+  date?: string;
+  payment_date?: string;
+  payment_mode?: string;
+  payment_method?: string;
+  amount: number | string;
+  note?: string;
+  notes?: string;
+  status?: string;
+  payment_status?: string;
   is_outstanding?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface InsuranceRecordItem {
@@ -98,6 +120,9 @@ export interface InsuranceRecordItem {
   total_premium: number | string;
   paid_amount?: number;
   balance?: number;
+  total_paid?: number | string;
+  outstanding?: number | string;
+  payment_status?: "UNPAID" | "PARTIAL" | "PAID" | string;
   remarks?: string;
   customer: CustomerSummary;
   vehicle: VehicleSummary;
@@ -108,6 +133,7 @@ export interface InsuranceRecordItem {
   status?: "active" | "expiring_soon" | "expired" | string;
   documents_count?: number;
   documents?: InsuranceDocumentItem[];
+  payments?: PaymentTransaction[];
   transactions?: PaymentTransaction[];
   created_at?: string;
   updated_at?: string;
@@ -123,6 +149,8 @@ export interface InsuranceRecordListResponse {
 export interface InsuranceRecordPayload {
   policy_number: string;
   insurance_company_id: number;
+  customer_id?: number;
+  create_new_customer?: boolean;
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
@@ -133,6 +161,11 @@ export interface InsuranceRecordPayload {
   policy_expiry_date: string;
   entry_date?: string;
   total_premium: number;
+  initial_payment?: number | string;
+  paid_amount?: number | string;
+  initial_payment_method?: string;
+  payment_method?: string;
+  payment_mode?: string;
   remarks?: string;
 }
 
@@ -380,6 +413,99 @@ export const insuranceDocumentService = {
   ): Promise<{ message: string }> {
     const response = await apiClient.delete<{ message: string }>(
       `/insurance/records/${recordId}/documents/${documentId}/`
+    );
+    return response.data;
+  },
+};
+
+export const customerService = {
+  async lookup(phone: string): Promise<CustomerLookupResponse> {
+    const response = await apiClient.get<CustomerLookupResponse>("/customers/lookup/", {
+      params: { phone: phone.trim() },
+    });
+    return response.data;
+  },
+
+  async getAll(params?: { search?: string; phone?: string }): Promise<CustomerSummary[]> {
+    const response = await apiClient.get<CustomerSummary[] | { results: CustomerSummary[] }>("/customers/", {
+      params,
+    });
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    return (response.data as { results: CustomerSummary[] }).results || [];
+  },
+
+  async getById(id: number): Promise<CustomerSummary> {
+    const response = await apiClient.get<CustomerSummary>(`/customers/${id}/`);
+    return response.data;
+  },
+
+  async create(data: Partial<CustomerSummary>): Promise<CustomerSummary> {
+    const response = await apiClient.post<CustomerSummary>("/customers/", data);
+    return response.data;
+  },
+
+  async update(id: number, data: Partial<CustomerSummary>): Promise<CustomerSummary> {
+    const response = await apiClient.patch<CustomerSummary>(`/customers/${id}/`, data);
+    return response.data;
+  },
+};
+
+export const paymentService = {
+  async getByRecordId(recordId: number): Promise<PaymentTransaction[]> {
+    const response = await apiClient.get<PaymentTransaction[]>(
+      `/insurance/records/${recordId}/payments/`
+    );
+    return response.data;
+  },
+
+  async create(data: {
+    recordId: number;
+    amount: number;
+    payment_mode?: string;
+    payment_method?: string;
+    payment_date?: string;
+    notes?: string;
+    remark?: string;
+  }): Promise<{
+    message: string;
+    data: PaymentTransaction;
+    total_paid: string;
+    outstanding: string;
+    payment_status: string;
+  }> {
+    const response = await apiClient.post(
+      `/insurance/records/${data.recordId}/payments/`,
+      {
+        amount: data.amount,
+        payment_method: data.payment_method || data.payment_mode || "Cash",
+        payment_date: data.payment_date,
+        notes: data.notes || data.remark || "",
+      }
+    );
+    return response.data;
+  },
+
+  async delete(recordId: number, paymentId: number | string): Promise<{ message: string }> {
+    const response = await apiClient.delete<{ message: string }>(
+      `/insurance/records/${recordId}/payments/${paymentId}/`
+    );
+    return response.data;
+  },
+
+  async getHistory(recordId: number): Promise<{
+    insurance_record_id: number;
+    total_premium: string;
+    total_paid: string;
+    outstanding: string;
+    status: string;
+    payment_status: string;
+    payments: PaymentTransaction[];
+    transactions: PaymentTransaction[];
+  }> {
+    const response = await apiClient.get(
+      `/insurance/records/${recordId}/payment-history/`
     );
     return response.data;
   },

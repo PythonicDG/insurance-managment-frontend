@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Pencil,
@@ -10,7 +10,7 @@ import {
   PlusCircle,
   CheckCircle2,
 } from "lucide-react";
-import { InsuranceRecordItem } from "@/lib/api";
+import { InsuranceRecordItem, PaymentTransaction, paymentService } from "@/lib/api";
 
 interface InsuranceRecordDetailProps {
   record: InsuranceRecordItem;
@@ -55,13 +55,94 @@ export function InsuranceRecordDetail({
       ? record.total_premium
       : parseFloat(String(record.total_premium || 0));
 
-  const paidAmount = record.paid_amount ?? 0;
-  const balance =
-    record.balance !== undefined
-      ? record.balance
-      : Math.max(0, totalPremium - paidAmount);
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>(
+    () => record.payments || record.transactions || []
+  );
 
-  const transactions = record.transactions || [];
+  const [paidAmount, setPaidAmount] = useState<number>(() => {
+    if (typeof record.total_paid !== "undefined" && record.total_paid !== null) {
+      return parseFloat(String(record.total_paid));
+    }
+    return typeof record.paid_amount === "number"
+      ? record.paid_amount
+      : parseFloat(String(record.paid_amount || 0));
+  });
+
+  const [balance, setBalance] = useState<number>(() => {
+    if (typeof record.outstanding !== "undefined" && record.outstanding !== null) {
+      return parseFloat(String(record.outstanding));
+    }
+    if (typeof record.balance === "number") {
+      return record.balance;
+    }
+    const initialPaid =
+      typeof record.total_paid !== "undefined" && record.total_paid !== null
+        ? parseFloat(String(record.total_paid))
+        : typeof record.paid_amount === "number"
+        ? record.paid_amount
+        : parseFloat(String(record.paid_amount || 0));
+    return Math.max(0, totalPremium - initialPaid);
+  });
+
+  useEffect(() => {
+    let active = true;
+
+    // Sync with record prop
+    const propTxs = record.payments || record.transactions || [];
+    if (propTxs.length > 0) {
+      setTransactions(propTxs);
+    }
+    const propPaid =
+      typeof record.total_paid !== "undefined" && record.total_paid !== null
+        ? parseFloat(String(record.total_paid))
+        : typeof record.paid_amount === "number"
+        ? record.paid_amount
+        : parseFloat(String(record.paid_amount || 0));
+    setPaidAmount(propPaid);
+
+    const propBal =
+      typeof record.outstanding !== "undefined" && record.outstanding !== null
+        ? parseFloat(String(record.outstanding))
+        : typeof record.balance === "number"
+        ? record.balance
+        : Math.max(0, totalPremium - propPaid);
+    setBalance(propBal);
+
+    // Fetch authoritative payment history directly from the backend
+    if (record.id) {
+      paymentService
+        .getHistory(record.id)
+        .then((history) => {
+          if (!active || !history) return;
+          const freshTxs = history.payments || history.transactions || [];
+          setTransactions(freshTxs);
+          if (typeof history.total_paid !== "undefined" && history.total_paid !== null) {
+            setPaidAmount(parseFloat(String(history.total_paid)) || 0);
+          }
+          if (typeof history.outstanding !== "undefined" && history.outstanding !== null) {
+            setBalance(parseFloat(String(history.outstanding)) || 0);
+          }
+        })
+        .catch(() => {
+          // Keep current prop values
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [record.id, record, totalPremium]);
+
+  const currentRecord: InsuranceRecordItem = {
+    ...record,
+    total_paid: paidAmount,
+    paid_amount: paidAmount,
+    outstanding: balance,
+    balance: balance,
+    payments: transactions,
+    transactions: transactions,
+  };
+
   const remarksText = record.remarks || "No underwriting remarks or notes recorded for this policy.";
 
   return (
@@ -86,7 +167,7 @@ export function InsuranceRecordDetail({
             {balance > 0 ? (
               <button
                 type="button"
-                onClick={() => onMakePayment(record)}
+                onClick={() => onMakePayment(currentRecord)}
                 className="px-4 py-2 border border-amber-400 text-amber-600 hover:bg-amber-50 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors cursor-pointer"
               >
                 MAKE PAYMENT
@@ -307,7 +388,7 @@ export function InsuranceRecordDetail({
             {balance > 0 && (
               <button
                 type="button"
-                onClick={() => onMakePayment(record)}
+                onClick={() => onMakePayment(currentRecord)}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
@@ -325,7 +406,7 @@ export function InsuranceRecordDetail({
                 {balance > 0 && (
                   <button
                     type="button"
-                    onClick={() => onMakePayment(record)}
+                    onClick={() => onMakePayment(currentRecord)}
                     className="mt-2 text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
                   >
                     Record first payment →
@@ -346,9 +427,11 @@ export function InsuranceRecordDetail({
                   {transactions.map((tx) => (
                     <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3 px-4 font-medium text-slate-900">
-                        {formatDate(tx.date)}
+                        {formatDate(tx.date || tx.payment_date)}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{tx.payment_mode}</td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {tx.payment_mode || tx.payment_method || "Cash"}
+                      </td>
                       <td
                         className={`py-3 px-4 font-bold ${
                           tx.is_outstanding ? "text-red-500" : "text-slate-900"
@@ -358,7 +441,7 @@ export function InsuranceRecordDetail({
                       </td>
                       <td className="py-3 px-4 text-slate-500">
                         <span className="inline-flex items-center gap-1.5">
-                          {tx.note}
+                          {tx.note || tx.notes || "—"}
                           {tx.is_outstanding && (
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                           )}

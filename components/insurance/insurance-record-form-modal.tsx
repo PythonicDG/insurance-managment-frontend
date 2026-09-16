@@ -1,15 +1,17 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Calendar as CalendarIcon, Building2, User, Car, Loader2 } from "lucide-react";
+import { X, Calendar as CalendarIcon, Building2, Car, Loader2 } from "lucide-react";
 import {
   InsuranceCompany,
   InsuranceRecordItem,
+  CustomerSummary,
   insuranceRecordService,
   extractApiError,
 } from "@/lib/api";
 import { PolicyDuplicateAlert } from "@/components/insurance/policy-duplicate-alert";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
+import { CustomerLookupSection } from "@/components/insurance/customer-lookup-section";
 
 interface InsuranceRecordFormModalProps {
   isOpen: boolean;
@@ -19,6 +21,8 @@ interface InsuranceRecordFormModalProps {
   onSave: (formData: {
     policy_number: string;
     insurance_company_id: number;
+    customer_id?: number;
+    create_new_customer?: boolean;
     customer_name: string;
     customer_phone: string;
     customer_email?: string;
@@ -68,6 +72,10 @@ function InsuranceRecordFormDialog({
   const [customerAddress, setCustomerAddress] = useState(
     () => recordToEdit?.customer?.address || ""
   );
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(
+    () => recordToEdit?.customer || null
+  );
+  const [isDifferentPerson, setIsDifferentPerson] = useState(false);
 
   const [vehicleNumber, setVehicleNumber] = useState(
     () => recordToEdit?.vehicle?.vehicle_number || ""
@@ -224,6 +232,8 @@ function InsuranceRecordFormDialog({
       await onSave({
         policy_number: trimmedPolicy,
         insurance_company_id: Number(companyId) || (companies[0]?.id ?? 1),
+        customer_id: selectedCustomer?.id || selectedCustomer?.customer_id,
+        create_new_customer: isDifferentPerson,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         customer_email: customerEmail.trim() || undefined,
@@ -300,68 +310,21 @@ function InsuranceRecordFormDialog({
           onSubmit={handleSubmit}
           className="p-6 space-y-5 max-h-[calc(85vh-8rem)] overflow-y-auto"
         >
-          {/* Section 1: Customer Details */}
-          <div>
-            <div className="flex items-center gap-2 mb-3 text-slate-900 font-bold text-xs uppercase tracking-wider">
-              <User className="w-3.5 h-3.5 text-blue-600" />
-              <span>Customer Details</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Customer Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="e.g. Rajesh Kumar"
-                  className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="customer@example.com"
-                  className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Residential Address
-                </label>
-                <input
-                  type="text"
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  placeholder="e.g. Flat 402, Signet Heights, Navi Mumbai"
-                  className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
+          {/* Section 1: Customer Details with Normalized Phone Lookup */}
+          <CustomerLookupSection
+            customerName={customerName}
+            setCustomerName={setCustomerName}
+            customerPhone={customerPhone}
+            setCustomerPhone={setCustomerPhone}
+            customerEmail={customerEmail}
+            setCustomerEmail={setCustomerEmail}
+            customerAddress={customerAddress}
+            setCustomerAddress={setCustomerAddress}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            isDifferentPerson={isDifferentPerson}
+            setIsDifferentPerson={setIsDifferentPerson}
+          />
 
           {/* Section 2: Vehicle Information */}
           <div className="pt-2 border-t border-slate-100">
