@@ -80,10 +80,16 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const payload = {
-        username: trimmedUser,
-        password: password,
-      };
+      const isEmail = /@/.test(trimmedUser);
+      const payload = isEmail
+        ? {
+            email: trimmedUser,
+            password: password,
+          }
+        : {
+            username: trimmedUser,
+            password: password,
+          };
 
       const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`, payload, {
         headers: { "Content-Type": "application/json" },
