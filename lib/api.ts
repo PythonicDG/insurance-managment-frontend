@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const API_BASE = "/api";
-const BACKEND_FALLBACK = "http://127.0.0.1:8000/api";
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "")}/api`;
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
@@ -20,24 +19,6 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
-);
-
-// Fallback to backend direct URL if proxy rewrite fails or ECONNREFUSED
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (
-      !originalRequest._retry &&
-      axios.isAxiosError(error) &&
-      (!error.response || error.code === "ECONNREFUSED")
-    ) {
-      originalRequest._retry = true;
-      originalRequest.baseURL = BACKEND_FALLBACK;
-      return axios(originalRequest);
-    }
-    return Promise.reject(error);
-  }
 );
 
 // Types

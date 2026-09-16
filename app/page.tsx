@@ -85,22 +85,10 @@ export default function LoginPage() {
         password: password,
       };
 
-      let response;
-      try {
-        response = await axios.post("/api/auth/login/", payload, {
-          headers: { "Content-Type": "application/json" },
-          timeout: 10000,
-        });
-      } catch (err: unknown) {
-        if (axios.isAxiosError(err) && (!err.response || err.code === "ECONNREFUSED")) {
-          response = await axios.post("http://127.0.0.1:8000/api/auth/login/", payload, {
-            headers: { "Content-Type": "application/json" },
-            timeout: 10000,
-          });
-        } else {
-          throw err;
-        }
-      }
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`, payload, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 10000,
+      });
 
       if (response && response.status === 200) {
         const data = response.data;
