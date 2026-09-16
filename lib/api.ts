@@ -136,6 +136,57 @@ export interface InsuranceRecordPayload {
   remarks?: string;
 }
 
+export interface DuplicateCheckResponse {
+  is_duplicate: boolean;
+  message?: string;
+  record: InsuranceRecordItem | null;
+}
+
+export function extractApiError(
+  err: unknown,
+  fallbackMessage = "An unexpected error occurred. Please try again."
+): {
+  message: string;
+  policyNumberError?: string;
+  fieldErrors?: Record<string, string>;
+} {
+  if (axios.isAxiosError(err) && err.response) {
+    const data = err.response.data;
+    if (typeof data === "string") {
+      return { message: data };
+    }
+    if (typeof data === "object" && data !== null) {
+      const fieldErrors: Record<string, string> = {};
+      let policyNumberError: string | undefined;
+
+      for (const [key, val] of Object.entries(data)) {
+        const errorText = Array.isArray(val) ? String(val[0]) : String(val);
+        fieldErrors[key] = errorText;
+        if (key === "policy_number") {
+          policyNumberError = errorText;
+        }
+      }
+
+      const firstMessage =
+        policyNumberError ||
+        fieldErrors["detail"] ||
+        fieldErrors["message"] ||
+        fieldErrors["non_field_errors"] ||
+        Object.values(fieldErrors)[0] ||
+        fallbackMessage;
+
+      return {
+        message: firstMessage,
+        policyNumberError,
+        fieldErrors,
+      };
+    }
+  } else if (err instanceof Error) {
+    return { message: err.message };
+  }
+  return { message: fallbackMessage };
+}
+
 // API Services
 export const companyService = {
   async getAll(params?: { search?: string; is_active?: string | boolean }): Promise<InsuranceCompany[]> {
@@ -280,6 +331,22 @@ export const insuranceRecordService = {
   async delete(id: number): Promise<{ message: string }> {
     const response = await apiClient.delete<{ message: string }>(
       `/insurance/records/${id}/`
+    );
+    return response.data;
+  },
+
+  async checkDuplicatePolicy(
+    policyNumber: string,
+    excludeId?: number | string
+  ): Promise<DuplicateCheckResponse> {
+    const response = await apiClient.get<DuplicateCheckResponse>(
+      "/insurance/records/check-duplicate/",
+      {
+        params: {
+          policy_number: policyNumber.trim(),
+          exclude_id: excludeId,
+        },
+      }
     );
     return response.data;
   },

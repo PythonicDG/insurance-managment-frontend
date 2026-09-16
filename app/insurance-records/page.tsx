@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import {
   Search,
   Plus,
@@ -18,8 +18,9 @@ import {
   SlidersHorizontal,
   ChevronDown,
   X,
+  Check,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
 import {
@@ -70,9 +71,11 @@ function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordIte
   const paidFromTxs = localTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
   const paidAmount =
-    rec.paid_amount !== undefined && rec.paid_amount > 0
+    localTxs.length > 0
+      ? paidFromTxs
+      : typeof rec.paid_amount === "number" && rec.paid_amount > 0
       ? rec.paid_amount
-      : paidFromTxs;
+      : 0;
 
   const balance = Math.max(0, total - paidAmount);
 
@@ -84,8 +87,10 @@ function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordIte
   };
 }
 
-export default function InsuranceRecordsPage() {
+function InsuranceRecordsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const viewId = searchParams.get("view");
 
   // Data state
   const [records, setRecords] = useState<InsuranceRecordItem[]>([]);
@@ -327,6 +332,27 @@ export default function InsuranceRecordsPage() {
     };
   }, [fetchRecords, fetchSummaryCounts, currentPage]);
 
+  // When ?view=<id> query param is present, load that record into detail view
+  useEffect(() => {
+    if (!viewId) return;
+    let active = true;
+    const loadRecordForView = async () => {
+      try {
+        const rec = await insuranceRecordService.getById(Number(viewId));
+        if (active && rec) {
+          const augmented = augmentRecordWithPayments(rec);
+          setSelectedRecordForDetail(augmented);
+        }
+      } catch {
+        // Handled gracefully
+      }
+    };
+    loadRecordForView();
+    return () => {
+      active = false;
+    };
+  }, [viewId]);
+
   // Handle header or input search
   const handleSearch = (q: string) => {
     setSearchQuery(q);
@@ -420,6 +446,23 @@ export default function InsuranceRecordsPage() {
 
   // Payment Recording
   const handleOpenPaymentModal = (record: InsuranceRecordItem) => {
+    const total =
+      typeof record.total_premium === "number"
+        ? record.total_premium
+        : parseFloat(String(record.total_premium || 0));
+    const paid = record.paid_amount ?? 0;
+    const outstanding =
+      record.balance !== undefined ? record.balance : Math.max(0, total - paid);
+
+    if (outstanding <= 0) {
+      showToast(
+        "info",
+        "Fully Paid",
+        `Policy ${record.policy_number} is already fully paid. Outstanding balance is ₹0.`
+      );
+      return;
+    }
+
     setRecordForPayment(record);
     setIsPaymentModalOpen(true);
   };
@@ -432,11 +475,30 @@ export default function InsuranceRecordsPage() {
     paymentDate: string;
     remark: string;
   }) => {
+    const currentRec =
+      records.find((r) => r.id === paymentData.recordId) || selectedRecordForDetail;
+    const currentBalance = currentRec ? (currentRec.balance ?? 0) : 0;
+
+    if (currentBalance <= 0) {
+      showToast(
+        "error",
+        "Payment Disallowed",
+        "This policy is already fully paid. No further payments can be added."
+      );
+      return;
+    }
+
+    const payAmount = Math.min(paymentData.amount, currentBalance);
+    if (payAmount <= 0) {
+      showToast("error", "Invalid Amount", "Payment amount must be greater than zero.");
+      return;
+    }
+
     const newTx: PaymentTransaction = {
       id: Date.now(),
       date: paymentData.paymentDate,
       payment_mode: paymentData.paymentMode,
-      amount: paymentData.amount,
+      amount: payAmount,
       note: paymentData.remark || "Payment recorded",
       is_outstanding: false,
     };
@@ -448,21 +510,22 @@ export default function InsuranceRecordsPage() {
       prev.map((rec) => {
         if (rec.id === paymentData.recordId) {
           const updated = augmentRecordWithPayments(rec);
-          if (selectedRecordForDetail?.id === rec.id) {
-            setSelectedRecordForDetail(updated);
-          }
           return updated;
         }
         return rec;
       })
     );
 
+    if (selectedRecordForDetail && selectedRecordForDetail.id === paymentData.recordId) {
+      setSelectedRecordForDetail(augmentRecordWithPayments(selectedRecordForDetail));
+    }
+
     fetchSummaryCounts();
 
     showToast(
       "success",
       "Payment Recorded",
-      `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} recorded successfully.`
+      `Payment of ₹${payAmount.toLocaleString("en-IN")} recorded successfully.`
     );
   };
 
@@ -598,7 +661,12 @@ export default function InsuranceRecordsPage() {
       {selectedRecordForDetail ? (
         <InsuranceRecordDetail
           record={selectedRecordForDetail}
-          onBack={() => setSelectedRecordForDetail(null)}
+          onBack={() => {
+            setSelectedRecordForDetail(null);
+            if (viewId) {
+              router.replace("/insurance-records");
+            }
+          }}
           onEdit={handleOpenEditModal}
           onMakePayment={handleOpenPaymentModal}
         />
@@ -1187,14 +1255,24 @@ export default function InsuranceRecordsPage() {
                                 <Trash2 className="w-4 h-4" />
                               </button>
 
-                              {/* Add Payment Button */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenPaymentModal(record)}
-                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer ml-1"
-                              >
-                                Add Payment
-                              </button>
+                              {/* Add Payment Button or Paid badge */}
+                              {(record.balance ?? 0) <= 0 ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg text-xs font-semibold select-none ml-1 cursor-default"
+                                  title="Policy is fully paid (₹0 outstanding)"
+                                >
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                                  Paid
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPaymentModal(record)}
+                                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer ml-1"
+                                >
+                                  Add Payment
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1276,5 +1354,22 @@ export default function InsuranceRecordsPage() {
         </div>
       )}
     </DashboardLayout>
+  );
+}
+
+export default function InsuranceRecordsPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardLayout title="Insurance Records">
+          <div className="py-24 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
+            <p className="text-xs">Loading records...</p>
+          </div>
+        </DashboardLayout>
+      }
+    >
+      <InsuranceRecordsContent />
+    </Suspense>
   );
 }

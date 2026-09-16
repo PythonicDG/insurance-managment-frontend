@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Calendar as CalendarIcon, Building2, User, Car } from "lucide-react";
-import { InsuranceCompany, InsuranceRecordItem } from "@/lib/api";
+import React, { useState, useEffect } from "react";
+import { X, Calendar as CalendarIcon, Building2, User, Car, Loader2 } from "lucide-react";
+import {
+  InsuranceCompany,
+  InsuranceRecordItem,
+  insuranceRecordService,
+  extractApiError,
+} from "@/lib/api";
+import { PolicyDuplicateAlert } from "@/components/insurance/policy-duplicate-alert";
+import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
 
 interface InsuranceRecordFormModalProps {
   isOpen: boolean;
@@ -88,11 +95,87 @@ function InsuranceRecordFormDialog({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Duplicate Detection State
+  const [duplicateRecord, setDuplicateRecord] = useState<InsuranceRecordItem | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [policyNumberError, setPolicyNumberError] = useState("");
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // Debounced duplicate detection
+  useEffect(() => {
+    const trimmed = policyNumber.trim();
+    let active = true;
+
+    const timer = setTimeout(async () => {
+      if (!trimmed) {
+        if (active) {
+          setDuplicateRecord(null);
+          setPolicyNumberError("");
+          setCheckingDuplicate(false);
+        }
+        return;
+      }
+
+      setCheckingDuplicate(true);
+      try {
+        const res = await insuranceRecordService.checkDuplicatePolicy(
+          trimmed,
+          recordToEdit?.id
+        );
+        if (!active) return;
+        if (res.is_duplicate && res.record) {
+          setDuplicateRecord(res.record);
+          const cust = res.record.customer?.name || "another customer";
+          setPolicyNumberError(`Policy number "${trimmed}" is already registered to ${cust}.`);
+        } else {
+          setDuplicateRecord(null);
+          setPolicyNumberError("");
+        }
+      } catch {
+        // Silently ignore background check failures
+      } finally {
+        if (active) {
+          setCheckingDuplicate(false);
+        }
+      }
+    }, trimmed ? 400 : 0);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [policyNumber, recordToEdit?.id]);
+
+  const handlePolicyNumberBlur = async () => {
+    const trimmed = policyNumber.trim();
+    if (!trimmed) return;
+    try {
+      setCheckingDuplicate(true);
+      const res = await insuranceRecordService.checkDuplicatePolicy(
+        trimmed,
+        recordToEdit?.id
+      );
+      if (res.is_duplicate && res.record) {
+        setDuplicateRecord(res.record);
+        const cust = res.record.customer?.name || "another customer";
+        setPolicyNumberError(`Policy number "${trimmed}" is already registered to ${cust}.`);
+      } else {
+        setDuplicateRecord(null);
+        setPolicyNumberError("");
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
-    if (!policyNumber.trim()) {
+    const trimmedPolicy = policyNumber.trim();
+    if (!trimmedPolicy) {
       setErrorMsg("Policy number is required.");
       return;
     }
@@ -114,10 +197,32 @@ function InsuranceRecordFormDialog({
       return;
     }
 
+    if (duplicateRecord) {
+      setErrorMsg(
+        `Policy number "${trimmedPolicy}" is already registered in the system. Please enter a unique policy number.`
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // Synchronous double-check before submission
+      const dupCheck = await insuranceRecordService.checkDuplicatePolicy(
+        trimmedPolicy,
+        recordToEdit?.id
+      );
+      if (dupCheck.is_duplicate && dupCheck.record) {
+        setDuplicateRecord(dupCheck.record);
+        const cust = dupCheck.record.customer?.name || "another customer";
+        const msg = `Policy number "${trimmedPolicy}" is already registered to ${cust}. Policy numbers must be unique.`;
+        setPolicyNumberError(msg);
+        setErrorMsg(msg);
+        setSubmitting(false);
+        return;
+      }
+
       await onSave({
-        policy_number: policyNumber.trim(),
+        policy_number: trimmedPolicy,
         insurance_company_id: Number(companyId) || (companies[0]?.id ?? 1),
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
@@ -132,10 +237,20 @@ function InsuranceRecordFormDialog({
       });
       onClose();
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setErrorMsg(err.message);
-      } else {
-        setErrorMsg("An unexpected error occurred. Please try again.");
+      const errorInfo = extractApiError(err, "An unexpected error occurred. Please try again.");
+      setErrorMsg(errorInfo.message);
+      if (errorInfo.policyNumberError) {
+        setPolicyNumberError(errorInfo.policyNumberError);
+        if (!duplicateRecord) {
+          insuranceRecordService
+            .checkDuplicatePolicy(trimmedPolicy, recordToEdit?.id)
+            .then((res) => {
+              if (res.is_duplicate && res.record) {
+                setDuplicateRecord(res.record);
+              }
+            })
+            .catch(() => {});
+        }
       }
     } finally {
       setSubmitting(false);
@@ -291,18 +406,57 @@ function InsuranceRecordFormDialog({
               <span>Policy &amp; Premium Details</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Policy Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={policyNumber}
-                  onChange={(e) => setPolicyNumber(e.target.value)}
-                  placeholder="e.g. POL-99283-772A"
-                  className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Policy Number <span className="text-red-500">*</span>
+                  </label>
+                  {checkingDuplicate && (
+                    <span className="flex items-center gap-1.5 text-[11px] text-blue-600 font-medium">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Checking uniqueness...</span>
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={policyNumber}
+                    onChange={(e) => {
+                      setPolicyNumber(e.target.value);
+                      if (errorMsg) setErrorMsg("");
+                    }}
+                    onBlur={handlePolicyNumberBlur}
+                    placeholder="e.g. POL-99283-772A"
+                    className={`w-full pl-3.5 pr-9 py-2 text-xs sm:text-sm bg-white border rounded-xl font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
+                      duplicateRecord
+                        ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/15"
+                        : policyNumberError
+                        ? "border-red-400 focus:border-red-500 focus:ring-red-500/20 bg-red-50/15"
+                        : "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                    }`}
+                  />
+                  {checkingDuplicate && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                {duplicateRecord && (
+                  <PolicyDuplicateAlert
+                    policyNumber={policyNumber}
+                    duplicateRecord={duplicateRecord}
+                    onViewExisting={() => setIsViewModalOpen(true)}
+                  />
+                )}
+
+                {!duplicateRecord && policyNumberError && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">
+                    {policyNumberError}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -412,6 +566,12 @@ function InsuranceRecordFormDialog({
           </div>
         </form>
       </div>
+
+      <ViewExistingRecordModal
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        record={duplicateRecord}
+      />
     </div>
   );
 }

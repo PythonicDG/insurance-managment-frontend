@@ -8,6 +8,7 @@ import {
   User,
   ExternalLink,
   PlusCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { InsuranceRecordItem } from "@/lib/api";
 
@@ -82,13 +83,20 @@ export function InsuranceRecordDetail({
           </h2>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => onMakePayment(record)}
-              className="px-4 py-2 border border-amber-400 text-amber-600 hover:bg-amber-50 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors cursor-pointer"
-            >
-              MAKE PAYMENT
-            </button>
+            {balance > 0 ? (
+              <button
+                type="button"
+                onClick={() => onMakePayment(record)}
+                className="px-4 py-2 border border-amber-400 text-amber-600 hover:bg-amber-50 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors cursor-pointer"
+              >
+                MAKE PAYMENT
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold tracking-wider uppercase select-none">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                FULLY PAID
+              </span>
+            )}
 
             <button
               type="button"
@@ -279,7 +287,11 @@ export function InsuranceRecordDetail({
               <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Outstanding Balance
               </p>
-              <p className="text-lg sm:text-xl font-extrabold text-red-500 mt-1">
+              <p
+                className={`text-lg sm:text-xl font-extrabold mt-1 ${
+                  balance <= 0 ? "text-emerald-600" : "text-red-500"
+                }`}
+              >
                 {formatCurrency(balance)}
               </p>
             </div>
@@ -292,14 +304,16 @@ export function InsuranceRecordDetail({
             <h4 className="text-xs font-bold text-slate-800">
               Transaction History
             </h4>
-            <button
-              type="button"
-              onClick={() => onMakePayment(record)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Add Transaction</span>
-            </button>
+            {balance > 0 && (
+              <button
+                type="button"
+                onClick={() => onMakePayment(record)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Add Transaction</span>
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto border border-slate-100 rounded-xl">
