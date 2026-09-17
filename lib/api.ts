@@ -511,4 +511,79 @@ export const paymentService = {
   },
 };
 
+export interface DashboardKpiMetrics {
+  today_entries: number;
+  today_premium: number;
+  today_received: number;
+  total_outstanding: number;
+  total_policies: number;
+  total_premium: number;
+  total_received: number;
+}
+
+export interface BusinessSummaryItem {
+  month: string;
+  year: number;
+  month_key: string;
+  premium_collected: number;
+  outstanding: number;
+}
+
+export interface PaymentStatusCategory {
+  count: number;
+  amount: number;
+  percentage: number;
+}
+
+export interface PaymentStatusSummary {
+  total_policies: number;
+  paid: PaymentStatusCategory;
+  partial: PaymentStatusCategory;
+  outstanding: PaymentStatusCategory;
+}
+
+export interface CompanyWiseSummaryItem {
+  company_id: number;
+  company_name: string;
+  policy_count: number;
+  total_premium: number;
+  premium_collected: number;
+  outstanding: number;
+  share_percentage: number;
+  collection_rate: number;
+}
+
+export interface DashboardRecentRecord {
+  id: number;
+  policy_number: string;
+  entry_date: string;
+  formatted_date: string;
+  customer_name: string;
+  customer_phone?: string;
+  vehicle_number: string;
+  vehicle_type?: string;
+  insurance_company?: string;
+  total_premium: number;
+  paid_amount: number;
+  outstanding: number;
+  status: "Paid" | "Partial" | "Outstanding" | string;
+}
+
+export interface DashboardData {
+  kpis: DashboardKpiMetrics;
+  business_summary: BusinessSummaryItem[];
+  payment_status_summary: PaymentStatusSummary;
+  company_wise_summary: CompanyWiseSummaryItem[];
+  recent_records: DashboardRecentRecord[];
+}
+
+export const dashboardService = {
+  async getSummary(params?: { months?: number }): Promise<DashboardData> {
+    const response = await apiClient.get<DashboardData>("/dashboard/summary/", {
+      params,
+    });
+    return response.data;
+  },
+};
+
 
