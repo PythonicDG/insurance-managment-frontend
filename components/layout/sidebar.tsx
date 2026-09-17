@@ -92,24 +92,24 @@ export function Sidebar({
       icon: Users,
       active: pathname.startsWith("/customers"),
     },
-    {
-      label: "Documents",
-      href: "/documents",
-      icon: FileText,
-      active: pathname.startsWith("/documents"),
-    },
+    // {
+    //   label: "Documents",
+    //   href: "/documents",
+    //   icon: FileText,
+    //   active: pathname.startsWith("/documents"),
+    // },
     {
       label: "Outstanding/Ledger",
       href: "/outstanding-ledger",
       icon: Receipt,
       active: pathname.startsWith("/outstanding-ledger"),
     },
-    {
-      label: "Reports",
-      href: "/reports",
-      icon: BarChart2,
-      active: pathname.startsWith("/reports"),
-    },
+    // {
+    //   label: "Reports",
+    //   href: "/reports",
+    //   icon: BarChart2,
+    //   active: pathname.startsWith("/reports"),
+    // },
     {
       label: "Settings",
       href: "/settings",
