@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Menu,
   ChevronDown,
   Settings as SettingsIcon,
   KeyRound,
@@ -22,8 +21,6 @@ interface HeaderProps {
 
 export function Header({
   title = "Dashboard",
-  onSearch,
-  onToggleMobileMenu,
 }: HeaderProps) {
   const router = useRouter();
   const [currentUser] = useState<UserProfile | null>(() => {
@@ -67,18 +64,8 @@ export function Header({
 
   return (
     <header className="h-16 bg-white border-b border-slate-200/80 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 shrink-0">
-      {/* Left: Mobile Hamburger Toggle + Page Title */}
-      <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
-        {/* Hamburger Menu Toggle on Mobile - High Touch Target */}
-        <button
-          type="button"
-          onClick={onToggleMobileMenu}
-          className="lg:hidden p-2 -ml-1 text-slate-700 hover:text-slate-900 active:bg-slate-100 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[42px] min-h-[42px] flex items-center justify-center shrink-0"
-          aria-label="Open navigation menu"
-        >
-          <Menu className="w-5 h-5 stroke-[2.3]" />
-        </button>
-
+      {/* Left: Page Title */}
+      <div className="flex items-center min-w-0">
         {/* Page Title */}
         <h1 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">
           {title}

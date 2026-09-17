@@ -64,11 +64,10 @@ export function DashboardLayout({
 
       {/* Main App Container */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Top Header with Mobile Hamburger */}
+        {/* Top Header */}
         <Header
           title={title}
           onSearch={onSearch}
-          onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
         />
 
         {/* Scrollable Page Body with bottom padding for mobile navigation */}

@@ -8,7 +8,6 @@ import {
   FileSpreadsheet,
   FileText,
   Printer,
-  Eye,
   Pencil,
   Trash2,
   ArrowUpDown,
@@ -1192,7 +1191,8 @@ function InsuranceRecordsContent() {
                       return (
                         <tr
                           key={record.id}
-                          className="hover:bg-slate-50/70 transition-colors"
+                          onClick={() => handleViewRecord(record)}
+                          className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
                         >
                           {/* Date */}
                           <td className="py-3.5 px-4 font-normal text-slate-600 whitespace-nowrap">
@@ -1231,23 +1231,16 @@ function InsuranceRecordsContent() {
                             {renderStatusBadge(record.status)}
                           </td>
 
-                          {/* Actions: Eye, Edit, Trash, Add Payment */}
+                          {/* Actions: Edit, Trash, Add Payment */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="flex items-center justify-center gap-2">
-                              {/* View Details */}
-                              <button
-                                type="button"
-                                onClick={() => handleViewRecord(record)}
-                                className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                                title="View Record Details"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-
                               {/* Edit */}
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditModal(record)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditModal(record);
+                                }}
                                 className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
                                 title="Edit Record"
                               >
@@ -1257,7 +1250,10 @@ function InsuranceRecordsContent() {
                               {/* Delete */}
                               <button
                                 type="button"
-                                onClick={() => handleDeleteRecord(record)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteRecord(record);
+                                }}
                                 className="p-1 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
                                 title="Delete Record"
                               >
@@ -1267,6 +1263,7 @@ function InsuranceRecordsContent() {
                               {/* Add Payment Button or Paid badge */}
                               {(record.balance ?? 0) <= 0 ? (
                                 <span
+                                  onClick={(e) => e.stopPropagation()}
                                   className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg text-xs font-semibold select-none ml-1 cursor-default"
                                   title="Policy is fully paid (₹0 outstanding)"
                                 >
@@ -1276,7 +1273,10 @@ function InsuranceRecordsContent() {
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenPaymentModal(record)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPaymentModal(record);
+                                  }}
                                   className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer ml-1"
                                 >
                                   Add Payment
