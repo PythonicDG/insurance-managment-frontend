@@ -77,7 +77,7 @@ export function Header({
       {/* Right Controls: Search & Profile */}
       <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
         {/* Search records box matching screenshot */}
-        <div className="hidden sm:flex items-center relative w-48 md:w-64">
+        {/* <div className="hidden sm:flex items-center relative w-48 md:w-64">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
           <input
             type="text"
@@ -93,7 +93,7 @@ export function Header({
             }}
             className="w-full pl-8 pr-3 py-1.5 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
-        </div>
+        </div> */}
 
         {/* User Profile Dropdown */}
         <div className="relative shrink-0" ref={dropdownRef}>
