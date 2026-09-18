@@ -24,6 +24,7 @@ import { DateRangePopover } from "@/components/ledger/date-range-popover";
 import { LedgerUpdatePaymentModal } from "@/components/ledger/ledger-update-payment-modal";
 import { LedgerRecordDetailModal } from "@/components/ledger/ledger-record-detail-modal";
 import { Toast, ToastType } from "@/components/ui/toast";
+import { formatLocalDateISO } from "@/lib/date-utils";
 
 export default function OutstandingLedgerPage() {
   // Data states
@@ -195,7 +196,7 @@ export default function OutstandingLedgerPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `outstanding_ledger_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `outstanding_ledger_${formatLocalDateISO(new Date())}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { InsuranceRecordItem, PaymentTransaction, paymentService } from "@/lib/api";
+import { formatDisplayDate } from "@/lib/date-utils";
 
 interface InsuranceRecordDetailProps {
   record: InsuranceRecordItem;
@@ -25,19 +26,9 @@ export function InsuranceRecordDetail({
   onEdit,
   onMakePayment,
 }: InsuranceRecordDetailProps) {
-  // Format Date Helper
+  // Format Date Helper (avoids UTC date shifts)
   const formatDate = (dateString?: string) => {
-    if (!dateString) return "—";
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
-      });
-    } catch {
-      return dateString;
-    }
+    return formatDisplayDate(dateString);
   };
 
   // Format Currency
@@ -196,7 +187,7 @@ export function InsuranceRecordDetail({
         <h3 className="text-sm font-bold text-slate-900 mb-4">
           Insurance Details
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
           <div>
             <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Policy Number
@@ -212,6 +203,15 @@ export function InsuranceRecordDetail({
             </p>
             <p className="text-xs sm:text-sm font-semibold text-slate-800">
               {record.insurance_company?.name || "—"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              Record Entry Date
+            </p>
+            <p className="text-xs sm:text-sm font-semibold text-slate-800">
+              {formatDate(record.entry_date)}
             </p>
           </div>
 

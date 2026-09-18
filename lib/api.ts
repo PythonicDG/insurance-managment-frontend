@@ -164,8 +164,10 @@ export interface InsuranceRecordPayload {
   initial_payment?: number | string;
   paid_amount?: number | string;
   initial_payment_method?: string;
+  initial_payment_date?: string;
   payment_method?: string;
   payment_mode?: string;
+  payment_date?: string;
   remarks?: string;
 }
 

@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { InsuranceCompany } from "@/lib/api";
+import { formatLocalDateISO } from "@/lib/date-utils";
 
 export type FilterCategory = "company" | "status" | "date" | "sort" | "search";
 
@@ -102,7 +103,7 @@ function MobileFiltersDialog({
   // Handlers for quick date presets
   const handleDatePreset = (type: "all" | "today" | "this_month" | "last_30_days" | "this_year") => {
     const today = new Date();
-    const formatYMD = (d: Date) => d.toISOString().split("T")[0];
+    const formatYMD = (d: Date) => formatLocalDateISO(d);
 
     if (type === "all") {
       setDraftFromDate("");

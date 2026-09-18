@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X, Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
 import { InsuranceRecordItem } from "@/lib/api";
+import { getTodayDateString } from "@/lib/date-utils";
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -25,11 +26,15 @@ interface DialogProps {
 }
 
 function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
+
   const total =
     typeof record.total_premium === "number"
       ? record.total_premium
       : parseFloat(String(record.total_premium || 0));
-  const paid = record.paid_amount ?? 0;
+  const paid =
+    typeof record.paid_amount === "number"
+      ? record.paid_amount
+      : parseFloat(String(record.paid_amount || 0));
   const outstandingBalance = Math.max(
     0,
     record.balance !== undefined
@@ -44,7 +49,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
   );
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [paymentDate, setPaymentDate] = useState(() => {
-    return new Date().toISOString().split("T")[0];
+    return getTodayDateString();
   });
   const [remark, setRemark] = useState("");
   const [error, setError] = useState("");

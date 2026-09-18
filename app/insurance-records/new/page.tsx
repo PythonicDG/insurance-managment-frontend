@@ -23,9 +23,16 @@ import {
   CustomerSummary,
   extractApiError,
 } from "@/lib/api";
-import { PolicyDuplicateAlert } from "@/components/insurance/policy-duplicate-alert";
+import {
+  PolicyDuplicateAlert,
+} from "@/components/insurance/policy-duplicate-alert";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
 import { CustomerLookupSection } from "@/components/insurance/customer-lookup-section";
+import {
+  formatLocalDateISO,
+  getTodayDateString,
+  getNextYearDateString,
+} from "@/lib/date-utils";
 
 function AddInsuranceRecordForm() {
   const router = useRouter();
@@ -55,15 +62,23 @@ function AddInsuranceRecordForm() {
   const [policyNumberError, setPolicyNumberError] = useState("");
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  // Dates default to today and +1 year
-  const [startDate, setStartDate] = useState(() => {
-    return new Date().toISOString().split("T")[0];
+  // Record Entry Date defaults to today's date automatically
+  const [entryDate, setEntryDate] = useState(() => {
+    return getTodayDateString();
   });
-  const [endDate, setEndDate] = useState(() => {
-    const nextYear = new Date();
-    nextYear.setFullYear(nextYear.getFullYear() + 1);
-    return nextYear.toISOString().split("T")[0];
-  });
+  // Insurance Start Date is empty by default (not pre-selected)
+  const [startDate, setStartDate] = useState("");
+  // Insurance End Date auto-calculates to 1 year later when start date is picked
+  const [endDate, setEndDate] = useState("");
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    if (val) {
+      setEndDate(getNextYearDateString(val));
+    } else {
+      setEndDate("");
+    }
+  };
 
   // Form State - Payment Details
   const [totalPremium, setTotalPremium] = useState<string>("");
@@ -133,6 +148,7 @@ function AddInsuranceRecordForm() {
               setSelectedCompanyId(rec.insurance_company.id);
             }
             setPolicyNumber(rec.policy_number || "");
+            if (rec.entry_date) setEntryDate(rec.entry_date);
             if (rec.policy_start_date) setStartDate(rec.policy_start_date);
             if (rec.policy_expiry_date) setEndDate(rec.policy_expiry_date);
             if (rec.total_premium) setTotalPremium(String(rec.total_premium));
@@ -377,12 +393,14 @@ function AddInsuranceRecordForm() {
         customer_address: customerAddress.trim() || undefined,
         vehicle_number: vehicleNumber.trim().toUpperCase(),
         vehicle_type: vehicleType.trim(),
+        entry_date: entryDate || getTodayDateString(),
         policy_start_date: startDate,
         policy_expiry_date: endDate,
         total_premium: numericPremium,
         initial_payment: !isEditMode && numericPaid > 0 ? numericPaid : undefined,
         paid_amount: !isEditMode && numericPaid > 0 ? numericPaid : undefined,
         initial_payment_method: "Cash / Online",
+        initial_payment_date: !isEditMode && numericPaid > 0 ? getTodayDateString() : undefined,
         remarks: remarks.trim() || undefined,
       };
 
@@ -418,7 +436,7 @@ function AddInsuranceRecordForm() {
               recordId: savedRecordId,
               amount: diff,
               payment_method: "Cash / Online",
-              payment_date: new Date().toISOString().split("T")[0],
+              payment_date: getTodayDateString(),
               notes: "Payment adjustment",
             });
           }
@@ -652,15 +670,17 @@ function AddInsuranceRecordForm() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Insurance START Date
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Insurance Start Date <span className="text-red-500">*</span>
+                    </label>
+                  </div>
                   <div className="relative">
                     <input
                       type="date"
                       required
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
                       className="w-full pl-3.5 pr-10 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-colors"
                     />
                     <CalendarIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -668,9 +688,14 @@ function AddInsuranceRecordForm() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Insurance End Date
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Insurance End Date <span className="text-red-500">*</span>
+                    </label>
+                    {startDate && (
+                      <span className="text-[11px] text-emerald-600 font-medium">+1 Year Auto</span>
+                    )}
+                  </div>
                   <div className="relative">
                     <input
                       type="date"

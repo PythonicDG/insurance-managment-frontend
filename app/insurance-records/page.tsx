@@ -36,6 +36,7 @@ import {
   MobileFiltersModal,
   FilterCategory,
 } from "@/components/insurance/mobile-filters-modal";
+import { formatLocalDateISO } from "@/lib/date-utils";
 
 // Attach payments and calculate real paid/balance for a record
 function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordItem {
@@ -579,7 +580,7 @@ function InsuranceRecordsContent() {
     }
 
     const headers = [
-      "Date",
+      "Record Entry Date",
       "Customer Name",
       "Phone",
       "Vehicle Number",
@@ -611,7 +612,7 @@ function InsuranceRecordsContent() {
     link.setAttribute("href", encodedUri);
     link.setAttribute(
       "download",
-      `Insurance_Records_${new Date().toISOString().split("T")[0]}.csv`
+      `Insurance_Records_${formatLocalDateISO(new Date())}.csv`
     );
     document.body.appendChild(link);
     link.click();
@@ -1131,7 +1132,7 @@ function InsuranceRecordsContent() {
                         onClick={() => handleSort("entry_date")}
                       >
                         <div className="flex items-center gap-1">
-                          <span>DATE</span>
+                          <span>RECORD ENTRY DATE</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>

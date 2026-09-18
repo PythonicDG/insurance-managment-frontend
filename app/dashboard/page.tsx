@@ -168,6 +168,7 @@ export default function DashboardPage() {
     customer_address?: string;
     vehicle_number: string;
     vehicle_type?: string;
+    entry_date?: string;
     policy_start_date: string;
     policy_expiry_date: string;
     total_premium: number;

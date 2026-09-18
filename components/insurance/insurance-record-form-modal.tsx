@@ -12,6 +12,10 @@ import {
 import { PolicyDuplicateAlert } from "@/components/insurance/policy-duplicate-alert";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
 import { CustomerLookupSection } from "@/components/insurance/customer-lookup-section";
+import {
+  getTodayDateString,
+  getNextYearDateString,
+} from "@/lib/date-utils";
 
 interface InsuranceRecordFormModalProps {
   isOpen: boolean;
@@ -29,6 +33,7 @@ interface InsuranceRecordFormModalProps {
     customer_address?: string;
     vehicle_number: string;
     vehicle_type?: string;
+    entry_date?: string;
     policy_start_date: string;
     policy_expiry_date: string;
     total_premium: number;
@@ -84,17 +89,26 @@ function InsuranceRecordFormDialog({
     () => recordToEdit?.vehicle?.vehicle_type || "SUV (Mahindra XUV700)"
   );
 
+  const [entryDate, setEntryDate] = useState(() => {
+    return recordToEdit?.entry_date || getTodayDateString();
+  });
+
   const [startDate, setStartDate] = useState(() => {
-    if (recordToEdit?.policy_start_date) return recordToEdit.policy_start_date;
-    return new Date().toISOString().split("T")[0];
+    return recordToEdit?.policy_start_date || "";
   });
 
   const [expiryDate, setExpiryDate] = useState(() => {
-    if (recordToEdit?.policy_expiry_date) return recordToEdit.policy_expiry_date;
-    const nextYear = new Date();
-    nextYear.setFullYear(nextYear.getFullYear() + 1);
-    return nextYear.toISOString().split("T")[0];
+    return recordToEdit?.policy_expiry_date || "";
   });
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    if (val) {
+      setExpiryDate(getNextYearDateString(val));
+    } else {
+      setExpiryDate("");
+    }
+  };
 
   const [totalPremium, setTotalPremium] = useState<number | string>(
     () => recordToEdit?.total_premium ?? ""
@@ -240,6 +254,7 @@ function InsuranceRecordFormDialog({
         customer_address: customerAddress.trim() || undefined,
         vehicle_number: vehicleNumber.trim().toUpperCase(),
         vehicle_type: vehicleType.trim(),
+        entry_date: entryDate || getTodayDateString(),
         policy_start_date: startDate,
         policy_expiry_date: expiryDate,
         total_premium: numPremium,
@@ -422,7 +437,7 @@ function InsuranceRecordFormDialog({
                 )}
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Insurance Company <span className="text-red-500">*</span>
                 </label>
@@ -457,7 +472,7 @@ function InsuranceRecordFormDialog({
                     type="date"
                     required
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
                     className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
                   />
                   <CalendarIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -465,9 +480,14 @@ function InsuranceRecordFormDialog({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Expiry Date <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Expiry Date <span className="text-red-500">*</span>
+                  </label>
+                  {startDate && (
+                    <span className="text-[11px] text-emerald-600 font-medium">+1 Year Auto</span>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type="date"

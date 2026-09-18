@@ -110,7 +110,7 @@ export function ViewExistingRecordModal({
         <div className="p-6 space-y-5 max-h-[calc(85vh-8rem)] overflow-y-auto">
           {/* Section 1: Policy & Expiry Overview */}
           <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
               <div>
                 <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   Company
@@ -119,6 +119,18 @@ export function ViewExistingRecordModal({
                   <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                   <p className="text-xs sm:text-sm font-bold text-slate-800 truncate">
                     {record.insurance_company?.name || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Record Entry Date
+                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <p className="text-xs sm:text-sm font-semibold text-slate-700">
+                    {formatDate(record.entry_date)}
                   </p>
                 </div>
               </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Calendar as CalendarIcon, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { LedgerRecord, paymentService } from "@/lib/api";
+import { getTodayDateString } from "@/lib/date-utils";
 
 interface LedgerUpdatePaymentModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export function LedgerUpdatePaymentModal({
   );
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [paymentDate, setPaymentDate] = useState(() => {
-    return new Date().toISOString().split("T")[0];
+    return getTodayDateString();
   });
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
@@ -65,7 +66,7 @@ export function LedgerUpdatePaymentModal({
         setAmount(0);
       }
       setPaymentMode("UPI");
-      setPaymentDate(new Date().toISOString().split("T")[0]);
+      setPaymentDate(getTodayDateString());
       setRemarks("");
       setError("");
       setSubmitting(false);
