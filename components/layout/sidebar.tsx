@@ -10,6 +10,7 @@ import {
   FileText,
   Receipt,
   BarChart2,
+  TrendingUp,
   Settings,
   LogOut,
   ChevronLeft,
@@ -101,7 +102,7 @@ export function Sidebar({
     {
       label: "Outstanding/Ledger",
       href: "/outstanding-ledger",
-      icon: Receipt,
+      icon: TrendingUp,
       active: pathname.startsWith("/outstanding-ledger"),
     },
     // {

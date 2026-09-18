@@ -10,18 +10,21 @@ import {
   LogOut,
   ShieldCheck,
   Search,
+  Bell,
 } from "lucide-react";
 import { authService, UserProfile } from "@/lib/api";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
 
 interface HeaderProps {
   title?: string;
+  subtitle?: string;
   onSearch?: (query: string) => void;
   onToggleMobileMenu?: () => void;
 }
 
 export function Header({
   title = "Dashboard",
+  subtitle,
   onSearch,
 }: HeaderProps) {
   const router = useRouter();
@@ -60,40 +63,53 @@ export function Header({
     currentUser?.first_name || currentUser?.username
       ? `${currentUser?.first_name || ""} ${currentUser?.last_name || ""}`.trim() ||
         currentUser?.username
-      : "Admin User";
+      : "Arjun Kumar";
 
-  const userRole = "Super Admin";
+  const userRole = "Administrator";
+
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "AK";
 
   return (
     <header className="h-16 bg-white border-b border-slate-200/80 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 shrink-0">
-      {/* Left: Page Title */}
-      <div className="flex items-center min-w-0">
-        {/* Page Title */}
+      {/* Left: Page Title & Subtitle */}
+      <div className="flex flex-col justify-center min-w-0">
         <h1 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">
           {title}
         </h1>
+        {subtitle && (
+          <p className="text-[11px] sm:text-xs text-slate-400 font-medium leading-tight mt-0.5">
+            {subtitle}
+          </p>
+        )}
       </div>
 
-      {/* Right Controls: Search & Profile */}
-      <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
-        {/* Search records box matching screenshot */}
-        {/* <div className="hidden sm:flex items-center relative w-48 md:w-64">
+      {/* Right Controls: Search, Notification Bell & Profile */}
+      <div className="flex items-center gap-2 sm:gap-4 md:gap-5">
+        {/* Search records box matching Figma */}
+        <div className="hidden md:flex items-center relative w-60 lg:w-72">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search records..."
+            placeholder="Search customer or vehicle number"
             onChange={(e) => onSearch?.(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const val = (e.target as HTMLInputElement).value.trim();
-                if (val) {
-                  router.push(`/insurance-records?search=${encodeURIComponent(val)}`);
-                }
-              }
-            }}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/80 hover:bg-slate-100/70 focus:bg-white border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
-        </div> */}
+        </div>
+
+        {/* Notification Bell Icon */}
+        <button
+          type="button"
+          className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 transition-colors cursor-pointer"
+          title="Notifications"
+        >
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full" />
+        </button>
 
         {/* User Profile Dropdown */}
         <div className="relative shrink-0" ref={dropdownRef}>
@@ -104,19 +120,19 @@ export function Header({
             aria-expanded={dropdownOpen}
             aria-haspopup="true"
           >
+            {/* Avatar Circle matching Figma */}
+            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shadow-2xs shrink-0">
+              {initials}
+            </div>
+
             {/* User Details (Desktop/Tablet) */}
-            <div className="text-right hidden sm:block">
+            <div className="text-left hidden sm:block">
               <p className="text-xs font-semibold text-slate-800 leading-tight">
                 {displayName}
               </p>
-              <p className="text-[11px] text-slate-500 leading-tight">
+              <p className="text-[10px] text-slate-500 leading-tight">
                 {userRole}
               </p>
-            </div>
-
-            {/* Avatar Circle */}
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
-              {displayName.charAt(0).toUpperCase()}
             </div>
 
             {/* Chevron Icon */}

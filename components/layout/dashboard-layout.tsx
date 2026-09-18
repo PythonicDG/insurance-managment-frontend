@@ -9,12 +9,14 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 interface DashboardLayoutProps {
   children: React.ReactNode;
   title?: string;
+  subtitle?: string;
   onSearch?: (query: string) => void;
 }
 
 export function DashboardLayout({
   children,
   title = "Dashboard",
+  subtitle,
   onSearch,
 }: DashboardLayoutProps) {
   const router = useRouter();
@@ -67,6 +69,7 @@ export function DashboardLayout({
         {/* Top Header */}
         <Header
           title={title}
+          subtitle={subtitle}
           onSearch={onSearch}
         />
 

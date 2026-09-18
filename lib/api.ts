@@ -586,4 +586,85 @@ export const dashboardService = {
   },
 };
 
+export interface LedgerSummary {
+  total_outstanding: number;
+  total_customers_pending: number;
+  total_received: number;
+  total_premium: number;
+}
+
+export interface LedgerRecord {
+  id: number;
+  policy_number: string;
+  entry_date: string;
+  policy_start_date?: string;
+  policy_expiry_date?: string;
+  total_premium: number | string;
+  paid_amount: number | string;
+  outstanding: number | string;
+  status: "Partial" | "Outstanding" | "Paid" | string;
+  payment_status: "PARTIAL" | "UNPAID" | "PAID" | string;
+  customer_id: number;
+  customer_name: string;
+  customer_phone: string;
+  customer_email?: string;
+  vehicle_id: number;
+  vehicle_number: string;
+  vehicle_type?: string;
+  insurance_company_id: number;
+  insurance_company_name: string;
+  payments_count?: number;
+  remarks?: string;
+  created_at?: string;
+  updated_at?: string;
+  payments?: PaymentTransaction[];
+  transactions?: PaymentTransaction[];
+}
+
+export interface LedgerResponse {
+  summary: LedgerSummary;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  results: LedgerRecord[];
+}
+
+export const ledgerService = {
+  async getLedger(params?: {
+    search?: string;
+    insurance_company_id?: number | string;
+    payment_status?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    page_size?: number;
+    ordering?: string;
+    summary_scope?: string;
+  }): Promise<LedgerResponse> {
+    const response = await apiClient.get<LedgerResponse>("/payments/ledger/", {
+      params,
+    });
+    return response.data;
+  },
+
+  async getSummary(params?: {
+    search?: string;
+    insurance_company_id?: number | string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<LedgerSummary> {
+    const response = await apiClient.get<LedgerSummary>("/payments/ledger/summary/", {
+      params,
+    });
+    return response.data;
+  },
+
+  async getRecordDetail(id: number): Promise<LedgerRecord> {
+    const response = await apiClient.get<LedgerRecord>(`/payments/ledger/${id}/`);
+    return response.data;
+  },
+};
+
+
 
