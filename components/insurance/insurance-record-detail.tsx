@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   ArrowLeft,
   Pencil,
@@ -325,14 +326,17 @@ export function InsuranceRecordDetail({
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100">
-            <a
-              href="#customer"
-              onClick={(e) => e.preventDefault()}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              <span>View Customer Profile</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            {record.customer?.id ? (
+              <Link
+                href={`/customers/${record.customer.id}`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                <span>View Customer Profile</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            ) : (
+              <span className="text-xs text-slate-400">Customer profile not available</span>
+            )}
           </div>
         </div>
       </div>

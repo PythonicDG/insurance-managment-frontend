@@ -20,11 +20,13 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
 import { customerService, CustomerSummary, extractApiError } from "@/lib/api";
 
 export default function CustomersPage() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -375,22 +377,30 @@ export default function CustomersPage() {
                           )}
                         </div>
 
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(cust)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                            <span>Edit Profile</span>
-                          </button>
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <Link
-                            href={`/insurance-records/new?phone=${encodeURIComponent(cust.phone)}`}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900"
+                            href={`/customers/${cust.id || cust.customer_id}`}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800"
                           >
-                            <span>New Policy</span>
+                            <span>View Details</span>
                             <ExternalLink className="w-3 h-3" />
                           </Link>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(cust)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <Link
+                              href={`/insurance-records/new?phone=${encodeURIComponent(cust.phone)}`}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900"
+                            >
+                              <span>+ Policy</span>
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -474,10 +484,14 @@ export default function CustomersPage() {
                     const isSharedPhone = (phoneCounts[normPhone] || 0) > 1;
 
                     return (
-                      <tr key={cust.id || cust.customer_id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr
+                        key={cust.id || cust.customer_id}
+                        onClick={() => router.push(`/customers/${cust.id || cust.customer_id}`)}
+                        className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                      >
                         {/* ID Column */}
                         <td className="py-3.5 px-4 sm:px-6 font-mono text-xs font-semibold text-slate-700">
-                          <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          <span className="bg-slate-100 group-hover:bg-blue-100/70 group-hover:text-blue-700 px-2 py-0.5 rounded border border-slate-200 transition-colors">
                             #{cust.customer_id || cust.id}
                           </span>
                         </td>
@@ -485,10 +499,10 @@ export default function CustomersPage() {
                         {/* Name Column */}
                         <td className="py-3.5 px-4 sm:px-6">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                               {(cust.name || "C").charAt(0).toUpperCase()}
                             </div>
-                            <span className="font-semibold text-slate-900">
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                               {cust.name || "Unnamed Customer"}
                             </span>
                           </div>
@@ -534,22 +548,29 @@ export default function CustomersPage() {
 
                         {/* Actions Column */}
                         <td className="py-3.5 px-4 sm:px-6 text-right">
-                          <div className="inline-flex items-center gap-2">
+                          <div
+                            className="inline-flex items-center gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Link
+                              href={`/customers/${cust.id || cust.customer_id}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-100/70 rounded-lg transition-colors"
+                              title="View Customer Details"
+                            >
+                              <span>Details</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
                             <button
                               type="button"
-                              onClick={() => openEditModal(cust)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditModal(cust);
+                              }}
                               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
                             >
                               <Edit2 className="w-3 h-3" />
                               <span>Edit</span>
                             </button>
-                            {/* <Link
-                              href={`/insurance-records/new?phone=${encodeURIComponent(cust.phone)}`}
-                              title="Create insurance record for this customer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                            >
-                              <span>+ Policy</span>
-                            </Link> */}
                           </div>
                         </td>
                       </tr>

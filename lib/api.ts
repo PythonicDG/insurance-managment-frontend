@@ -50,6 +50,28 @@ export interface UserProfile {
   email: string;
 }
 
+export interface CustomerVehicleItem {
+  id: number;
+  vehicle_type: string;
+  vehicle_number: string;
+  records_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CustomerDocumentItem {
+  id: number;
+  record_id: number;
+  policy_number: string;
+  vehicle_number: string;
+  company_name: string;
+  document_name: string;
+  file?: string;
+  file_url?: string;
+  file_size?: number;
+  uploaded_at: string;
+}
+
 export interface CustomerSummary {
   id?: number;
   customer_id?: number;
@@ -61,6 +83,14 @@ export interface CustomerSummary {
   vehicles?: VehicleSummary[];
   created_at?: string;
   updated_at?: string;
+}
+
+export interface CustomerDetailResponse extends CustomerSummary {
+  total_records?: number;
+  total_premium?: number | string;
+  total_paid?: number | string;
+  total_outstanding?: number | string;
+  vehicles?: CustomerVehicleItem[];
 }
 
 export interface CustomerLookupResponse {
@@ -438,8 +468,28 @@ export const customerService = {
     return (response.data as { results: CustomerSummary[] }).results || [];
   },
 
-  async getById(id: number): Promise<CustomerSummary> {
-    const response = await apiClient.get<CustomerSummary>(`/customers/${id}/`);
+  async getById(id: number | string): Promise<CustomerDetailResponse> {
+    const response = await apiClient.get<CustomerDetailResponse>(`/customers/${id}/`);
+    return response.data;
+  },
+
+  async getRecords(
+    id: number | string,
+    params?: { ordering?: string }
+  ): Promise<InsuranceRecordItem[]> {
+    const response = await apiClient.get<InsuranceRecordItem[]>(`/customers/${id}/records/`, {
+      params,
+    });
+    return response.data;
+  },
+
+  async getVehicles(id: number | string): Promise<CustomerVehicleItem[]> {
+    const response = await apiClient.get<CustomerVehicleItem[]>(`/customers/${id}/vehicles/`);
+    return response.data;
+  },
+
+  async getDocuments(id: number | string): Promise<CustomerDocumentItem[]> {
+    const response = await apiClient.get<CustomerDocumentItem[]>(`/customers/${id}/documents/`);
     return response.data;
   },
 
@@ -448,8 +498,8 @@ export const customerService = {
     return response.data;
   },
 
-  async update(id: number, data: Partial<CustomerSummary>): Promise<CustomerSummary> {
-    const response = await apiClient.patch<CustomerSummary>(`/customers/${id}/`, data);
+  async update(id: number | string, data: Partial<CustomerSummary>): Promise<CustomerDetailResponse> {
+    const response = await apiClient.patch<CustomerDetailResponse>(`/customers/${id}/`, data);
     return response.data;
   },
 };
