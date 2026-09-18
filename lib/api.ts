@@ -581,6 +581,10 @@ export interface DashboardData {
   recent_records: DashboardRecentRecord[];
 }
 
+export interface BusinessSummaryResponse {
+  business_summary: BusinessSummaryItem[];
+}
+
 export const dashboardService = {
   async getSummary(params?: {
     months?: number;
@@ -592,6 +596,22 @@ export const dashboardService = {
       params,
     });
     return response.data;
+  },
+
+  async getBusinessSummary(params?: {
+    start_month?: string;
+    end_month?: string;
+    start_date?: string;
+    end_date?: string;
+    ref_year?: number;
+    ref_month?: number;
+    months?: number;
+  }): Promise<BusinessSummaryItem[]> {
+    const response = await apiClient.get<BusinessSummaryResponse>(
+      "/dashboard/business-summary/",
+      { params }
+    );
+    return response.data.business_summary;
   },
 };
 

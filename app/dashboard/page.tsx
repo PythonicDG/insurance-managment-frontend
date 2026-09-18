@@ -62,6 +62,9 @@ export default function DashboardPage() {
     ...computeRangeForPreset("today"),
   }));
 
+  // Separate refresh trigger for Business Summary chart (independent of global date filter)
+  const [chartRefreshTrigger, setChartRefreshTrigger] = useState(0);
+
   // Collect Payment & Record Payment States
   const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
   const [recordForPayment, setRecordForPayment] = useState<InsuranceRecordItem | null>(null);
@@ -179,6 +182,7 @@ export default function DashboardPage() {
       });
       // Refresh dashboard data with current date range
       await loadData(dateRange, true);
+      setChartRefreshTrigger((prev) => prev + 1);
     } catch (err: unknown) {
       const { message } = extractApiError(err, "Failed to create insurance record.");
       setToast({
@@ -235,6 +239,7 @@ export default function DashboardPage() {
 
       // Reload dashboard metrics with current global date filter
       await loadData(dateRange, true);
+      setChartRefreshTrigger((prev) => prev + 1);
     } catch (err: unknown) {
       const { message } = extractApiError(err, "Failed to record payment.");
       setToast({
@@ -317,7 +322,8 @@ export default function DashboardPage() {
           <div className="lg:col-span-7">
             <BusinessSummaryChart
               data={data.business_summary}
-              loading={loading}
+              loading={loading && data.business_summary.length === 0}
+              refreshTrigger={chartRefreshTrigger}
             />
           </div>
 
