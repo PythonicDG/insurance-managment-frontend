@@ -229,13 +229,13 @@ export function DashboardDateFilter({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-0 sm:inset-auto sm:absolute sm:left-0 sm:top-full sm:mt-2 sm:bg-transparent sm:backdrop-blur-none sm:block"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-0 sm:inset-auto sm:absolute sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:bg-transparent sm:backdrop-blur-none sm:block"
           onClick={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}
         >
           <div
-            className="w-full max-w-sm sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 animate-in fade-in zoom-in-95 duration-150"
+            className="w-full max-w-sm sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 animate-in fade-in zoom-in-95 sm:origin-top-right duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
