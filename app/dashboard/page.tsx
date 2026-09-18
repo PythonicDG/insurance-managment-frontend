@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { RefreshCw, AlertCircle } from "lucide-react";
+import { AlertCircle, IndianRupee } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
   dashboardService,
   companyService,
   insuranceRecordService,
+  paymentService,
   DashboardData,
   InsuranceCompany,
+  InsuranceRecordItem,
   extractApiError,
 } from "@/lib/api";
 import { DashboardKpiCards } from "@/components/dashboard/dashboard-kpi-card";
@@ -17,6 +19,13 @@ import { PaymentStatusChart } from "@/components/dashboard/payment-status-chart"
 import { CompanyPremiumChart } from "@/components/dashboard/company-premium-chart";
 import { RecentRecordsTable } from "@/components/dashboard/recent-records-table";
 import { InsuranceRecordFormModal } from "@/components/insurance/insurance-record-form-modal";
+import {
+  DashboardDateFilter,
+  DashboardDateRange,
+  computeRangeForPreset,
+} from "@/components/dashboard/dashboard-date-filter";
+import { CollectPaymentModal } from "@/components/dashboard/collect-payment-modal";
+import { RecordPaymentModal } from "@/components/insurance/record-payment-modal";
 import { Toast, ToastType } from "@/components/ui/toast";
 
 const initialDashboardData: DashboardData = {
@@ -47,6 +56,17 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Global Date Filter State (Defaults to Today)
+  const [dateRange, setDateRange] = useState<DashboardDateRange>(() => ({
+    preset: "today",
+    ...computeRangeForPreset("today"),
+  }));
+
+  // Collect Payment & Record Payment States
+  const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
+  const [recordForPayment, setRecordForPayment] = useState<InsuranceRecordItem | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
   // Modal & Toast states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toast, setToast] = useState<{
@@ -56,35 +76,53 @@ export default function DashboardPage() {
     type: ToastType;
   } | null>(null);
 
-  const loadData = useCallback(async (isSilent = false) => {
-    if (isSilent) {
-      setRefreshing(true);
-    }
-    setError(null);
+  const loadData = useCallback(
+    async (currentRange: DashboardDateRange = dateRange, isSilent = false) => {
+      if (isSilent) {
+        setRefreshing(true);
+      }
+      setError(null);
 
-    try {
-      const [summaryRes, companiesRes] = await Promise.all([
-        dashboardService.getSummary(),
-        companyService.getAll({ is_active: true }),
-      ]);
-      setData(summaryRes);
-      setCompanies(companiesRes);
-    } catch (err: unknown) {
-      const { message } = extractApiError(err, "Failed to load dashboard data.");
-      setError(message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+      try {
+        const params: { start_date?: string; end_date?: string; filter?: string } = {};
+        if (currentRange.preset === "all") {
+          params.filter = "all";
+        } else if (currentRange.startDate && currentRange.endDate) {
+          params.start_date = currentRange.startDate;
+          params.end_date = currentRange.endDate;
+        }
+
+        const [summaryRes, companiesRes] = await Promise.all([
+          dashboardService.getSummary(params),
+          companyService.getAll({ is_active: true }),
+        ]);
+        setData(summaryRes);
+        setCompanies(companiesRes);
+      } catch (err: unknown) {
+        const { message } = extractApiError(err, "Failed to load dashboard data.");
+        setError(message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [dateRange]
+  );
 
   useEffect(() => {
     let ignore = false;
 
     async function initialFetch() {
       try {
+        const todayPreset = computeRangeForPreset("today");
+        const params: { start_date?: string; end_date?: string } = {};
+        if (todayPreset.startDate && todayPreset.endDate) {
+          params.start_date = todayPreset.startDate;
+          params.end_date = todayPreset.endDate;
+        }
+
         const [summaryRes, companiesRes] = await Promise.all([
-          dashboardService.getSummary(),
+          dashboardService.getSummary(params),
           companyService.getAll({ is_active: true }),
         ]);
         if (!ignore) {
@@ -107,6 +145,12 @@ export default function DashboardPage() {
       ignore = true;
     };
   }, []);
+
+  const handleDateRangeChange = (newRange: DashboardDateRange) => {
+    setDateRange(newRange);
+    setLoading(true);
+    loadData(newRange, false);
+  };
 
   const handleCreateRecord = async (formData: {
     policy_number: string;
@@ -133,8 +177,8 @@ export default function DashboardPage() {
         message: "Policy record created successfully!",
         type: "success",
       });
-      // Refresh dashboard data to update metrics & recent records
-      await loadData(true);
+      // Refresh dashboard data with current date range
+      await loadData(dateRange, true);
     } catch (err: unknown) {
       const { message } = extractApiError(err, "Failed to create insurance record.");
       setToast({
@@ -147,10 +191,66 @@ export default function DashboardPage() {
     }
   };
 
+  // Open RecordPaymentModal when user selects a vehicle record
+  const handleSelectRecordForPayment = async (rec: InsuranceRecordItem) => {
+    setIsCollectModalOpen(false);
+    try {
+      const fullRecord = await insuranceRecordService.getById(rec.id);
+      setRecordForPayment(fullRecord);
+    } catch {
+      setRecordForPayment(rec);
+    }
+    setIsPaymentModalOpen(true);
+  };
+
+  // Save Payment callback
+  const handleSavePayment = async (paymentData: {
+    recordId: number;
+    paymentType: "full" | "partial";
+    amount: number;
+    paymentMode: string;
+    paymentDate: string;
+    remark: string;
+  }) => {
+    try {
+      await paymentService.create({
+        recordId: paymentData.recordId,
+        amount: paymentData.amount,
+        payment_mode: paymentData.paymentMode,
+        payment_date: paymentData.paymentDate,
+        notes: paymentData.remark || "Payment collected via Dashboard",
+      });
+
+      setIsPaymentModalOpen(false);
+      setRecordForPayment(null);
+
+      setToast({
+        open: true,
+        title: "Payment Recorded",
+        message: `Payment of ₹${paymentData.amount.toLocaleString(
+          "en-IN"
+        )} recorded successfully!`,
+        type: "success",
+      });
+
+      // Reload dashboard metrics with current global date filter
+      await loadData(dateRange, true);
+    } catch (err: unknown) {
+      const { message } = extractApiError(err, "Failed to record payment.");
+      setToast({
+        open: true,
+        title: "Payment Error",
+        message,
+        type: "error",
+      });
+      throw err;
+    }
+  };
+
   return (
     <DashboardLayout title="Dashboard">
-      {/* Top Banner with Refresh Status */}
-      <div className="flex items-center justify-between pb-4 sm:pb-5">
+      {/* Top Banner with Unified Global Filter and Collect Payment Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 sm:pb-5">
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
             Overview
@@ -160,20 +260,23 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          {/* Unified Global Date Filter */}
+          <DashboardDateFilter
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            disabled={loading && !refreshing}
+          />
+
+          {/* Collect Payment Button (Replaced Refresh button) */}
           <button
             type="button"
-            onClick={() => loadData(true)}
-            disabled={loading || refreshing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer disabled:opacity-50"
-            title="Refresh dashboard data"
+            onClick={() => setIsCollectModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer active:scale-95 shrink-0"
+            title="Collect payment by vehicle number"
           >
-            <RefreshCw
-              className={`w-3.5 h-3.5 text-slate-500 ${
-                refreshing ? "animate-spin text-blue-600" : ""
-              }`}
-            />
-            <span className="hidden sm:inline">Refresh</span>
+            <IndianRupee className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Collect Payment</span>
           </button>
         </div>
       </div>
@@ -189,7 +292,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => {
               setLoading(true);
-              loadData();
+              loadData(dateRange);
             }}
             className="px-3 py-1 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 cursor-pointer shrink-0"
           >
@@ -201,7 +304,11 @@ export default function DashboardPage() {
       {/* Main Dashboard Layout */}
       <div className="space-y-5 sm:space-y-6">
         {/* Row 1: KPI Stat Cards */}
-        <DashboardKpiCards kpis={data.kpis} loading={loading} />
+        <DashboardKpiCards
+          kpis={data.kpis}
+          loading={loading}
+          filterLabel={dateRange.label}
+        />
 
         {/* Row 2: Business Summary (7 cols) & Payment Status Summary (5 cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
@@ -244,6 +351,24 @@ export default function DashboardPage() {
           onSave={handleCreateRecord}
         />
       )}
+
+      {/* Collect Payment Vehicle Search Modal */}
+      <CollectPaymentModal
+        isOpen={isCollectModalOpen}
+        onClose={() => setIsCollectModalOpen(false)}
+        onSelectRecord={handleSelectRecordForPayment}
+      />
+
+      {/* Record Payment Dialog */}
+      <RecordPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setRecordForPayment(null);
+        }}
+        record={recordForPayment}
+        onSavePayment={handleSavePayment}
+      />
 
       {/* Toast Notification */}
       {toast && (

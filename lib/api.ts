@@ -516,9 +516,13 @@ export interface DashboardKpiMetrics {
   today_premium: number;
   today_received: number;
   total_outstanding: number;
+  all_time_outstanding?: number;
   total_policies: number;
   total_premium: number;
   total_received: number;
+  filter_start_date?: string | null;
+  filter_end_date?: string | null;
+  is_all_time?: boolean;
 }
 
 export interface BusinessSummaryItem {
@@ -578,7 +582,12 @@ export interface DashboardData {
 }
 
 export const dashboardService = {
-  async getSummary(params?: { months?: number }): Promise<DashboardData> {
+  async getSummary(params?: {
+    months?: number;
+    start_date?: string;
+    end_date?: string;
+    filter?: string;
+  }): Promise<DashboardData> {
     const response = await apiClient.get<DashboardData>("/dashboard/summary/", {
       params,
     });

@@ -17,9 +17,14 @@ export function formatINR(val: number | string | undefined | null): string {
 interface DashboardKpiCardsProps {
   kpis: DashboardKpiMetrics;
   loading?: boolean;
+  filterLabel?: string;
 }
 
-export function DashboardKpiCards({ kpis, loading = false }: DashboardKpiCardsProps) {
+export function DashboardKpiCards({
+  kpis,
+  loading = false,
+  filterLabel = "Today",
+}: DashboardKpiCardsProps) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
@@ -39,30 +44,58 @@ export function DashboardKpiCards({ kpis, loading = false }: DashboardKpiCardsPr
     );
   }
 
+  const isToday = !filterLabel || filterLabel.toLowerCase() === "today";
+  const isAllTime = filterLabel?.toLowerCase() === "all time";
+
+  const getCardTitle = (metric: "entries" | "premium" | "received") => {
+    if (isToday) {
+      if (metric === "entries") return "Today's Entries";
+      if (metric === "premium") return "Today's Total Premium";
+      return "Today's Received Amount";
+    }
+    if (isAllTime) {
+      if (metric === "entries") return "Total Entries";
+      if (metric === "premium") return "Total Premium";
+      return "Total Received Amount";
+    }
+    if (filterLabel && filterLabel.length <= 15) {
+      if (metric === "entries") return `${filterLabel}'s Entries`;
+      if (metric === "premium") return `${filterLabel}'s Premium`;
+      return `${filterLabel}'s Received`;
+    }
+    if (metric === "entries") return "Entries";
+    if (metric === "premium") return "Total Premium";
+    return "Received Amount";
+  };
+
   const cards = [
     {
-      title: "Today's Entries",
+      title: getCardTitle("entries"),
+      subtitle: !isToday ? filterLabel : undefined,
       value: kpis.today_entries.toLocaleString("en-IN"),
       valueColor: "text-slate-900",
       iconType: "entries",
       badgeBg: "bg-blue-50 text-blue-600",
     },
     {
-      title: "Today's Total Premium",
+      title: getCardTitle("premium"),
+      subtitle: !isToday ? filterLabel : undefined,
       value: formatINR(kpis.today_premium),
       valueColor: "text-slate-900",
       iconType: "rupee",
       badgeBg: "bg-blue-50 text-blue-600",
     },
     {
-      title: "Today's Received Amount",
+      title: getCardTitle("received"),
+      subtitle: !isToday ? filterLabel : undefined,
       value: formatINR(kpis.today_received),
       valueColor: "text-emerald-600",
       iconType: "check",
       badgeBg: "bg-emerald-50 text-emerald-600",
     },
     {
-      title: "Total Outstanding",
+      title: isToday || isAllTime ? "Total Outstanding" : "Outstanding (Period)",
+      subtitle: !isToday ? filterLabel : undefined,
       value: formatINR(kpis.total_outstanding),
       valueColor: "text-rose-600",
       iconType: "alert",
