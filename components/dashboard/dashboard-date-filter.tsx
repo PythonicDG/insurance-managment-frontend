@@ -118,8 +118,7 @@ export function computeRangeForPreset(preset: DateFilterPreset): {
       return { startDate: undefined, endDate: undefined, label: "All Time" };
     }
     default: {
-      const todayStr = formatDateISO(now);
-      return { startDate: todayStr, endDate: todayStr, label: "Today" };
+      return { startDate: undefined, endDate: undefined, label: "All Time" };
     }
   }
 }
@@ -154,6 +153,7 @@ export function DashboardDateFilter({
   }, [open]);
 
   const presets: { key: DateFilterPreset; label: string }[] = [
+    { key: "all", label: "All Time" },
     { key: "today", label: "Today" },
     { key: "yesterday", label: "Yesterday" },
     { key: "this_week", label: "This Week" },
@@ -161,7 +161,6 @@ export function DashboardDateFilter({
     { key: "last_month", label: "Last Month" },
     { key: "last_30", label: "Last 30 Days" },
     { key: "this_year", label: "This Year" },
-    { key: "all", label: "All Time" },
   ];
 
   const handleSelectPreset = (preset: DateFilterPreset) => {
@@ -177,7 +176,7 @@ export function DashboardDateFilter({
 
   const handleApplyCustom = () => {
     if (!customStart && !customEnd) {
-      handleSelectPreset("today");
+      handleSelectPreset("all");
       return;
     }
     const start = customStart || customEnd;
@@ -202,7 +201,7 @@ export function DashboardDateFilter({
       }
       return `${formatDisplayDate(value.startDate)} – ${formatDisplayDate(value.endDate)}`;
     }
-    return value.label || "Today";
+    return value.label || "All Time";
   };
 
   return (
@@ -248,10 +247,10 @@ export function DashboardDateFilter({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {value.preset !== "today" && (
+                {value.preset !== "all" && (
                   <button
                     type="button"
-                    onClick={() => handleSelectPreset("today")}
+                    onClick={() => handleSelectPreset("all")}
                     className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
                     Reset

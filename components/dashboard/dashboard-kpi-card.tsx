@@ -23,7 +23,7 @@ interface DashboardKpiCardsProps {
 export function DashboardKpiCards({
   kpis,
   loading = false,
-  filterLabel = "Today",
+  filterLabel = "All Time",
 }: DashboardKpiCardsProps) {
   if (loading) {
     return (
@@ -44,8 +44,8 @@ export function DashboardKpiCards({
     );
   }
 
-  const isToday = !filterLabel || filterLabel.toLowerCase() === "today";
-  const isAllTime = filterLabel?.toLowerCase() === "all time";
+  const isToday = filterLabel?.toLowerCase() === "today";
+  const isAllTime = !filterLabel || filterLabel.toLowerCase() === "all time";
 
   const getCardTitle = (metric: "entries" | "premium" | "received") => {
     if (isToday) {

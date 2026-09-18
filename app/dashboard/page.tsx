@@ -56,10 +56,10 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Global Date Filter State (Defaults to Today)
+  // Global Date Filter State (Defaults to All Time)
   const [dateRange, setDateRange] = useState<DashboardDateRange>(() => ({
-    preset: "today",
-    ...computeRangeForPreset("today"),
+    preset: "all",
+    ...computeRangeForPreset("all"),
   }));
 
   // Separate refresh trigger for Business Summary chart (independent of global date filter)
@@ -117,11 +117,13 @@ export default function DashboardPage() {
 
     async function initialFetch() {
       try {
-        const todayPreset = computeRangeForPreset("today");
-        const params: { start_date?: string; end_date?: string } = {};
-        if (todayPreset.startDate && todayPreset.endDate) {
-          params.start_date = todayPreset.startDate;
-          params.end_date = todayPreset.endDate;
+        const allPreset = computeRangeForPreset("all");
+        const params: { start_date?: string; end_date?: string; filter?: string } = {
+          filter: "all",
+        };
+        if (allPreset.startDate && allPreset.endDate) {
+          params.start_date = allPreset.startDate;
+          params.end_date = allPreset.endDate;
         }
 
         const [summaryRes, companiesRes] = await Promise.all([
