@@ -260,23 +260,25 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
           {/* Unified Global Date Filter */}
-          <DashboardDateFilter
-            value={dateRange}
-            onChange={handleDateRangeChange}
-            disabled={loading && !refreshing}
-          />
+          <div className="flex-1 sm:flex-initial min-w-0">
+            <DashboardDateFilter
+              value={dateRange}
+              onChange={handleDateRangeChange}
+              disabled={loading && !refreshing}
+            />
+          </div>
 
           {/* Collect Payment Button (Replaced Refresh button) */}
           <button
             type="button"
             onClick={() => setIsCollectModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer active:scale-95 shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer active:scale-95 shrink-0"
             title="Collect payment by vehicle number"
           >
             <IndianRupee className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Collect Payment</span>
+            <span className="whitespace-nowrap">Collect Payment</span>
           </button>
         </div>
       </div>

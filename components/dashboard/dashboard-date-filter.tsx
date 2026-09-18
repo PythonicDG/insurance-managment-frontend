@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Calendar as CalendarIcon, ChevronDown, Check } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, Check, X } from "lucide-react";
 
 export type DateFilterPreset =
   | "today"
@@ -206,18 +206,20 @@ export function DashboardDateFilter({
   };
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative w-full sm:w-auto" ref={popoverRef}>
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer disabled:opacity-50"
+        className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-start gap-2 px-3.5 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer disabled:opacity-50 min-w-0"
         title="Global date filter for dashboard metrics"
       >
-        <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-        <span className="font-semibold text-slate-800 tracking-tight">
-          {displayLabel()}
-        </span>
+        <div className="flex items-center gap-2 truncate min-w-0">
+          <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <span className="font-semibold text-slate-800 tracking-tight truncate">
+            {displayLabel()}
+          </span>
+        </div>
         <ChevronDown
           className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
             open ? "rotate-180 text-blue-600" : ""
@@ -226,26 +228,45 @@ export function DashboardDateFilter({
       </button>
 
       {open && (
-        <div className="absolute right-0 sm:right-auto sm:left-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
-            <div>
-              <span className="text-xs font-bold text-slate-900 block">
-                Dashboard Date Filter
-              </span>
-              <span className="text-[11px] text-slate-400">
-                Filters KPIs & Overview metrics
-              </span>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-0 sm:inset-auto sm:absolute sm:left-0 sm:top-full sm:mt-2 sm:bg-transparent sm:backdrop-blur-none sm:block"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
+              <div>
+                <span className="text-xs font-bold text-slate-900 block">
+                  Dashboard Date Filter
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Filters KPIs & Overview metrics
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {value.preset !== "today" && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset("today")}
+                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="sm:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            {value.preset !== "today" && (
-              <button
-                type="button"
-                onClick={() => handleSelectPreset("today")}
-                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
-              >
-                Reset to Today
-              </button>
-            )}
-          </div>
 
           {/* Quick Presets */}
           <div className="grid grid-cols-2 gap-1.5 mb-3.5">
@@ -319,7 +340,8 @@ export function DashboardDateFilter({
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
     </div>
   );
 }
