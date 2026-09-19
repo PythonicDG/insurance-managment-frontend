@@ -158,6 +158,7 @@ export interface InsuranceRecordItem {
   vehicle: VehicleSummary;
   insurance_company: InsuranceCompanySummary;
   vehicle_class?: string;
+  is_active?: boolean;
   is_expired?: boolean;
   days_left?: number;
   status?: "active" | "expiring_soon" | "expired" | string;
@@ -199,12 +200,37 @@ export interface InsuranceRecordPayload {
   payment_mode?: string;
   payment_date?: string;
   remarks?: string;
+  is_renewal?: boolean;
+  renew_from_id?: number;
 }
 
 export interface DuplicateCheckResponse {
   is_duplicate: boolean;
   message?: string;
   record: InsuranceRecordItem | null;
+}
+
+export interface VehicleCheckResponse {
+  exists: boolean;
+  vehicle_number: string;
+  vehicle_id?: number;
+  vehicle_type?: string;
+  customer_id?: number;
+  customer_name?: string;
+  customer_phone?: string;
+  has_active_policy: boolean;
+  active_record: InsuranceRecordItem | null;
+  has_expired_policy: boolean;
+  latest_expired_record: InsuranceRecordItem | null;
+  history_count: number;
+  message?: string;
+}
+
+export interface VehicleHistoryResponse {
+  vehicle_id: number;
+  vehicle_number: string;
+  total_records: number;
+  records: InsuranceRecordItem[];
 }
 
 export function extractApiError(
@@ -412,6 +438,43 @@ export const insuranceRecordService = {
           exclude_id: excludeId,
         },
       }
+    );
+    return response.data;
+  },
+
+  async checkVehicle(
+    vehicleNumber: string,
+    excludeId?: number | string
+  ): Promise<VehicleCheckResponse> {
+    const response = await apiClient.get<VehicleCheckResponse>(
+      "/insurance/records/check-vehicle/",
+      {
+        params: {
+          vehicle_number: vehicleNumber.trim(),
+          exclude_id: excludeId,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async renewPolicy(
+    recordId: number,
+    data: Partial<InsuranceRecordPayload>
+  ): Promise<{ message: string; data: InsuranceRecordItem; previous_record_id: number }> {
+    const response = await apiClient.post<{
+      message: string;
+      data: InsuranceRecordItem;
+      previous_record_id: number;
+    }>(`/insurance/records/${recordId}/renew/`, data);
+    return response.data;
+  },
+
+  async getVehicleHistory(
+    recordId: number
+  ): Promise<VehicleHistoryResponse> {
+    const response = await apiClient.get<VehicleHistoryResponse>(
+      `/insurance/records/${recordId}/vehicle-history/`
     );
     return response.data;
   },

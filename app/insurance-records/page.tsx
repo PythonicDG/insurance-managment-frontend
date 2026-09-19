@@ -31,6 +31,7 @@ import {
   PaymentTransaction,
 } from "@/lib/api";
 import { RecordPaymentModal } from "@/components/insurance/record-payment-modal";
+import { RenewPolicyModal } from "@/components/insurance/renew-policy-modal";
 import { InsuranceRecordDetail } from "@/components/insurance/insurance-record-detail";
 import {
   MobileFiltersModal,
@@ -112,6 +113,29 @@ function InsuranceRecordsContent() {
   // Modals state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [recordForPayment, setRecordForPayment] = useState<InsuranceRecordItem | null>(null);
+
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
+  const [recordToRenew, setRecordToRenew] = useState<InsuranceRecordItem | null>(null);
+
+  const handleOpenRenewModal = (record: InsuranceRecordItem) => {
+    setRecordToRenew(record);
+    setIsRenewModalOpen(true);
+  };
+
+  const handleRenewSuccess = (newRecord: InsuranceRecordItem) => {
+    setIsRenewModalOpen(false);
+    setRecordToRenew(null);
+    showToast(
+      "success",
+      "Policy Renewed",
+      `Policy ${newRecord.policy_number} has been created as the active policy.`
+    );
+    fetchRecords(currentPage);
+    fetchSummaryCounts();
+    if (selectedRecordForDetail) {
+      handleViewRecord(newRecord);
+    }
+  };
 
   // Mobile Filters Modal State
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -650,6 +674,18 @@ function InsuranceRecordsContent() {
         onSavePayment={handleSavePayment}
       />
 
+      {/* Renew Policy Modal */}
+      <RenewPolicyModal
+        isOpen={isRenewModalOpen}
+        onClose={() => {
+          setIsRenewModalOpen(false);
+          setRecordToRenew(null);
+        }}
+        record={recordToRenew}
+        companies={companies}
+        onRenewSuccess={handleRenewSuccess}
+      />
+
       {/* Mobile Filters Popup Modal (Flipkart / Amazon Style) */}
       <MobileFiltersModal
         isOpen={isMobileFiltersOpen}
@@ -678,6 +714,7 @@ function InsuranceRecordsContent() {
           }}
           onEdit={handleOpenEditModal}
           onMakePayment={handleOpenPaymentModal}
+          onRenew={handleOpenRenewModal}
         />
       ) : (
         <div className="space-y-4">
@@ -1246,6 +1283,19 @@ function InsuranceRecordsContent() {
                                 title="Edit Record"
                               >
                                 <Pencil className="w-4 h-4" />
+                              </button>
+
+                              {/* Renew */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenRenewModal(record);
+                                }}
+                                className="p-1 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                                title="Renew Policy"
+                              >
+                                <RefreshCw className="w-4 h-4" />
                               </button>
 
                               {/* Delete */}

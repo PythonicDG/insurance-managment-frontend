@@ -10,8 +10,16 @@ import {
   ExternalLink,
   PlusCircle,
   CheckCircle2,
+  RefreshCw,
+  History,
+  ShieldCheck,
 } from "lucide-react";
-import { InsuranceRecordItem, PaymentTransaction, paymentService } from "@/lib/api";
+import {
+  InsuranceRecordItem,
+  PaymentTransaction,
+  paymentService,
+  insuranceRecordService,
+} from "@/lib/api";
 import { formatDisplayDate } from "@/lib/date-utils";
 
 interface InsuranceRecordDetailProps {
@@ -19,6 +27,7 @@ interface InsuranceRecordDetailProps {
   onBack: () => void;
   onEdit: (record: InsuranceRecordItem) => void;
   onMakePayment: (record: InsuranceRecordItem) => void;
+  onRenew?: (record: InsuranceRecordItem) => void;
 }
 
 export function InsuranceRecordDetail({
@@ -26,6 +35,7 @@ export function InsuranceRecordDetail({
   onBack,
   onEdit,
   onMakePayment,
+  onRenew,
 }: InsuranceRecordDetailProps) {
   // Format Date Helper (avoids UTC date shifts)
   const formatDate = (dateString?: string) => {
@@ -50,6 +60,9 @@ export function InsuranceRecordDetail({
   const [transactions, setTransactions] = useState<PaymentTransaction[]>(
     () => record.payments || record.transactions || []
   );
+
+  const [vehicleHistory, setVehicleHistory] = useState<InsuranceRecordItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const [paidAmount, setPaidAmount] = useState<number>(() => {
     if (typeof record.total_paid !== "undefined" && record.total_paid !== null) {
@@ -118,6 +131,21 @@ export function InsuranceRecordDetail({
         .catch(() => {
           // Keep current prop values
         });
+
+      // Fetch vehicle insurance history
+      setIsLoadingHistory(true);
+      insuranceRecordService
+        .getVehicleHistory(record.id)
+        .then((data) => {
+          if (!active || !data) return;
+          setVehicleHistory(data.records || []);
+        })
+        .catch(() => {
+          // Keep empty if fails
+        })
+        .finally(() => {
+          if (active) setIsLoadingHistory(false);
+        });
     }
 
     return () => {
@@ -156,6 +184,17 @@ export function InsuranceRecordDetail({
           </h2>
 
           <div className="flex items-center gap-2.5">
+            {onRenew && (
+              <button
+                type="button"
+                onClick={() => onRenew(record)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Renew Policy</span>
+              </button>
+            )}
+
             {balance > 0 ? (
               <button
                 type="button"
@@ -188,7 +227,7 @@ export function InsuranceRecordDetail({
         <h3 className="text-sm font-bold text-slate-900 mb-4">
           Insurance Details
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 sm:gap-6">
           <div>
             <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Policy Number
@@ -196,6 +235,24 @@ export function InsuranceRecordDetail({
             <p className="text-xs sm:text-sm font-bold text-blue-600 truncate">
               {record.policy_number}
             </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+              Status
+            </p>
+            <div>
+              {record.is_active ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  Expired / Inactive
+                </span>
+              )}
+            </div>
           </div>
 
           <div>
@@ -475,6 +532,85 @@ export function InsuranceRecordDetail({
             POLICY RECORD • {formatDate(record.entry_date || record.created_at)}
           </p>
         </div>
+      </div>
+
+      {/* Card 6: Vehicle Insurance History */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-900">
+              Vehicle Insurance History ({record.vehicle?.vehicle_number || "Vehicle"})
+            </h3>
+          </div>
+          {vehicleHistory.length > 0 && (
+            <span className="text-xs text-slate-500 font-medium">
+              {vehicleHistory.length} total record{vehicleHistory.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+
+        {isLoadingHistory ? (
+          <div className="py-6 text-center text-xs text-slate-400">Loading history...</div>
+        ) : vehicleHistory.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-400">
+            No other policy records found for this vehicle.
+          </div>
+        ) : (
+          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 text-slate-400 font-semibold border-b border-slate-100">
+                <tr>
+                  <th className="py-2.5 px-4 uppercase tracking-wider">Policy #</th>
+                  <th className="py-2.5 px-4 uppercase tracking-wider">Company</th>
+                  <th className="py-2.5 px-4 uppercase tracking-wider">Insurance Period</th>
+                  <th className="py-2.5 px-4 uppercase tracking-wider">Premium</th>
+                  <th className="py-2.5 px-4 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {vehicleHistory.map((item) => (
+                  <tr
+                    key={item.id}
+                    className={`hover:bg-slate-50/50 transition-colors ${
+                      item.id === record.id ? "bg-blue-50/40 font-medium" : ""
+                    }`}
+                  >
+                    <td className="py-3 px-4 text-slate-900">
+                      <span className="font-semibold">{item.policy_number}</span>
+                      {item.id === record.id && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">
+                          Viewing
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
+                      {item.insurance_company?.name || "—"}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
+                      {formatDate(item.policy_start_date)} – {formatDate(item.policy_expiry_date)}
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {formatCurrency(item.total_premium)}
+                    </td>
+                    <td className="py-3 px-4">
+                      {item.is_active ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                          Expired / Inactive
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

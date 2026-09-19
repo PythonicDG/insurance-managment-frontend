@@ -21,11 +21,14 @@ import {
   InsuranceRecordItem,
   InsuranceRecordPayload,
   CustomerSummary,
+  VehicleCheckResponse,
   extractApiError,
 } from "@/lib/api";
 import {
   PolicyDuplicateAlert,
 } from "@/components/insurance/policy-duplicate-alert";
+import { VehicleActivePolicyAlert } from "@/components/insurance/vehicle-active-policy-alert";
+import { RenewPolicyModal } from "@/components/insurance/renew-policy-modal";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
 import { CustomerLookupSection } from "@/components/insurance/customer-lookup-section";
 import {
@@ -50,6 +53,11 @@ function AddInsuranceRecordForm() {
   // Form State - Vehicle Details
   const [vehicleType, setVehicleType] = useState("Car");
   const [vehicleNumber, setVehicleNumber] = useState("");
+  const [vehicleCheck, setVehicleCheck] = useState<VehicleCheckResponse | null>(null);
+  const [checkingVehicle, setCheckingVehicle] = useState(false);
+  const [vehicleError, setVehicleError] = useState("");
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
+  const [recordToRenew, setRecordToRenew] = useState<InsuranceRecordItem | null>(null);
 
   // Form State - Insurance Details
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
@@ -253,6 +261,87 @@ function AddInsuranceRecordForm() {
     }
   };
 
+  // Debounced vehicle active policy check
+  useEffect(() => {
+    const trimmed = vehicleNumber.trim();
+    let active = true;
+
+    const timer = setTimeout(async () => {
+      if (!trimmed) {
+        if (active) {
+          setVehicleCheck(null);
+          setVehicleError("");
+          setCheckingVehicle(false);
+        }
+        return;
+      }
+
+      setCheckingVehicle(true);
+      try {
+        const res = await insuranceRecordService.checkVehicle(
+          trimmed,
+          isEditMode && editId ? Number(editId) : undefined
+        );
+        if (!active) return;
+        setVehicleCheck(res);
+        if (res.has_active_policy && res.active_record && !isEditMode) {
+          setVehicleError(
+            `Active policy #${res.active_record.policy_number} already exists for vehicle "${trimmed}".`
+          );
+        } else {
+          setVehicleError("");
+        }
+
+        // Pre-fill vehicle type if vehicle exists and not set
+        if (res.exists && res.vehicle_type && (!vehicleType || vehicleType === "Car")) {
+          setVehicleType(res.vehicle_type);
+        }
+        // Pre-fill customer details if empty
+        if (res.exists && res.customer_phone && !customerPhone) {
+          setCustomerPhone(res.customer_phone);
+          if (res.customer_name && !customerName) {
+            setCustomerName(res.customer_name);
+          }
+        }
+      } catch {
+        // Handled gracefully in background
+      } finally {
+        if (active) {
+          setCheckingVehicle(false);
+        }
+      }
+    }, trimmed ? 400 : 0);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [vehicleNumber, isEditMode, editId, vehicleType, customerPhone, customerName]);
+
+  const handleVehicleNumberBlur = async () => {
+    const trimmed = vehicleNumber.trim();
+    if (!trimmed) return;
+    try {
+      setCheckingVehicle(true);
+      const res = await insuranceRecordService.checkVehicle(
+        trimmed,
+        isEditMode && editId ? Number(editId) : undefined
+      );
+      setVehicleCheck(res);
+      if (res.has_active_policy && res.active_record && !isEditMode) {
+        setVehicleError(
+          `Active policy #${res.active_record.policy_number} already exists for vehicle "${trimmed}".`
+        );
+      } else {
+        setVehicleError("");
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCheckingVehicle(false);
+    }
+  };
+
   // Calculations for Payment Details
   const numericPremium = parseFloat(totalPremium) || 0;
   const numericPaid = parseFloat(paidAmount) || 0;
@@ -364,6 +453,14 @@ function AddInsuranceRecordForm() {
       return;
     }
 
+    // Prevent submission if active policy already exists on this vehicle
+    if (vehicleCheck?.has_active_policy && vehicleCheck.active_record && !isEditMode) {
+      setErrorMessage(
+        `Active policy #${vehicleCheck.active_record.policy_number} already exists for vehicle "${vehicleNumber.trim().toUpperCase()}". Please renew or update the existing policy.`
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       // Synchronous double-check before submission
@@ -377,6 +474,22 @@ function AddInsuranceRecordForm() {
           const cust = dupCheck.record.customer?.name || "another customer";
           const msg = `Policy number "${effectivePolicyNumber}" is already registered to ${cust}. Policy numbers must be unique.`;
           setPolicyNumberError(msg);
+          setErrorMessage(msg);
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Synchronous vehicle active policy double-check
+      if (!isEditMode && vehicleNumber.trim()) {
+        const vCheck = await insuranceRecordService.checkVehicle(
+          vehicleNumber.trim(),
+          isEditMode && editId ? Number(editId) : undefined
+        );
+        if (vCheck.has_active_policy && vCheck.active_record) {
+          setVehicleCheck(vCheck);
+          const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${vehicleNumber.trim().toUpperCase()}". Please renew or update the existing policy.`;
+          setVehicleError(msg);
           setErrorMessage(msg);
           setSubmitting(false);
           return;
@@ -499,6 +612,23 @@ function AddInsuranceRecordForm() {
         record={duplicateRecord}
       />
 
+      <RenewPolicyModal
+        isOpen={isRenewModalOpen}
+        onClose={() => setIsRenewModalOpen(false)}
+        record={recordToRenew}
+        companies={companies}
+        onRenewSuccess={(newRec) => {
+          showToast(
+            "success",
+            "Policy Renewed",
+            `Policy #${newRec.policy_number} created successfully. Old policy archived to history.`
+          );
+          setTimeout(() => {
+            router.push("/insurance-records");
+          }, 800);
+        }}
+      />
+
       <div className="max-w-6xl mx-auto">
         {loadingInitial ? (
           <div className="py-24 flex flex-col items-center justify-center text-slate-400">
@@ -565,18 +695,69 @@ function AddInsuranceRecordForm() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Vehicle Number
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={vehicleNumber}
-                    onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-                    placeholder="MH-12-AB-1234"
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Vehicle Number
+                    </label>
+                    {checkingVehicle && (
+                      <span className="flex items-center gap-1.5 text-[11px] text-blue-600 font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Checking vehicle...</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={vehicleNumber}
+                      onChange={(e) => {
+                        setVehicleNumber(e.target.value.toUpperCase());
+                        if (vehicleError) setVehicleError("");
+                      }}
+                      onBlur={handleVehicleNumberBlur}
+                      placeholder="MH-12-AB-1234"
+                      className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border rounded-xl text-slate-800 placeholder:text-slate-400 font-mono uppercase focus:outline-none focus:ring-2 transition-colors ${
+                        vehicleCheck?.has_active_policy
+                          ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/15"
+                          : vehicleError
+                          ? "border-red-400 focus:border-red-500 focus:ring-red-500/20 bg-red-50/15"
+                          : "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                      }`}
+                    />
+                    {checkingVehicle && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  {!vehicleCheck && vehicleError && (
+                    <p className="mt-1.5 text-xs text-red-600 font-medium">
+                      {vehicleError}
+                    </p>
+                  )}
                 </div>
+
+                {/* Vehicle Active Policy Alert / Expired Policy Notice */}
+                {vehicleCheck && (
+                  <div className="md:col-span-2">
+                    <VehicleActivePolicyAlert
+                      vehicleNumber={vehicleNumber}
+                      vehicleCheck={vehicleCheck}
+                      onUpdatePolicy={(activeRec) => {
+                        router.push(`/insurance-records/new?id=${activeRec.id}`);
+                      }}
+                      onRenewPolicy={(activeRec) => {
+                        setRecordToRenew(activeRec);
+                        setIsRenewModalOpen(true);
+                      }}
+                      onViewDetails={(rec) => {
+                        setDuplicateRecord(rec);
+                        setIsViewModalOpen(true);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -890,14 +1071,21 @@ function AddInsuranceRecordForm() {
 
               <button
                 type="submit"
-                disabled={submitting}
-                className="px-7 py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center min-w-[140px]"
+                disabled={submitting || Boolean(vehicleCheck?.has_active_policy && !isEditMode)}
+                title={
+                  vehicleCheck?.has_active_policy && !isEditMode
+                    ? "Active policy already exists for this vehicle. Please Renew or Update."
+                    : undefined
+                }
+                className="px-7 py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center min-w-[140px]"
               >
                 {submitting ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Saving...</span>
                   </span>
+                ) : vehicleCheck?.has_active_policy && !isEditMode ? (
+                  "Active Policy Exists"
                 ) : isEditMode ? (
                   "Update Record"
                 ) : (
