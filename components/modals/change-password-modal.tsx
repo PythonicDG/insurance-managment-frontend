@@ -93,7 +93,12 @@ export function ChangePasswordModal({
 
       // Backend invalidates user auth_token upon password change
       if (typeof window !== "undefined") {
+        sessionStorage.removeItem("insure_token");
+        sessionStorage.removeItem("insure_user");
+        sessionStorage.removeItem("insure_last_activity");
         localStorage.removeItem("insure_token");
+        localStorage.removeItem("insure_user");
+        localStorage.removeItem("insure_last_activity");
       }
 
       setTimeout(() => {

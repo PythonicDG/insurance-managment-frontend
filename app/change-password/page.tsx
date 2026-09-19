@@ -9,7 +9,7 @@ export default function ChangePasswordRedirect() {
   useEffect(() => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("insure_token")
+        ? sessionStorage.getItem("insure_token") || localStorage.getItem("insure_token")
         : null;
 
     if (token) {

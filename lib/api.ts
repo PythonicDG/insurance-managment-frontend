@@ -7,19 +7,47 @@ export const apiClient = axios.create({
   timeout: 10000,
 });
 
+// Helper to get token (prioritizing sessionStorage for tab/window session lifecycle)
+const getAuthToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem("insure_token") || localStorage.getItem("insure_token");
+};
+
 // Attach token to every outgoing request
 apiClient.interceptors.request.use(
   (config) => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("insure_token");
-      if (token) {
-        config.headers.Authorization = `Token ${token}`;
-      }
+    const token = getAuthToken();
+    if (token) {
+      config.headers.Authorization = `Token ${token}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
+
+// Response interceptor to handle 401 Unauthorized (e.g. session expired or invalid token)
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      if (typeof window !== "undefined") {
+        const hadToken = Boolean(getAuthToken());
+        sessionStorage.removeItem("insure_token");
+        sessionStorage.removeItem("insure_user");
+        sessionStorage.removeItem("insure_last_activity");
+        localStorage.removeItem("insure_token");
+        localStorage.removeItem("insure_user");
+        localStorage.removeItem("insure_last_activity");
+
+        if (hadToken && window.location.pathname !== "/") {
+          window.location.href = "/?reason=session_expired";
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 // Types
 export interface InsuranceCompany {
@@ -346,7 +374,9 @@ export const authService = {
   getCurrentUser(): UserProfile | null {
     if (typeof window === "undefined") return null;
     try {
-      const saved = localStorage.getItem("insure_user");
+      const saved =
+        sessionStorage.getItem("insure_user") ||
+        localStorage.getItem("insure_user");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -354,8 +384,7 @@ export const authService = {
   },
 
   getToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("insure_token");
+    return getAuthToken();
   },
 
   async changePassword(payload: {
@@ -369,6 +398,19 @@ export const authService = {
     return response.data;
   },
 
+  async pingSession(): Promise<boolean> {
+    try {
+      await apiClient.post("/auth/ping/");
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("insure_last_activity", Date.now().toString());
+        localStorage.setItem("insure_last_activity", Date.now().toString());
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
   async logout(): Promise<void> {
     try {
       await apiClient.post("/auth/logout/");
@@ -376,8 +418,12 @@ export const authService = {
       // Ignore network errors on logout
     } finally {
       if (typeof window !== "undefined") {
+        sessionStorage.removeItem("insure_token");
+        sessionStorage.removeItem("insure_user");
+        sessionStorage.removeItem("insure_last_activity");
         localStorage.removeItem("insure_token");
         localStorage.removeItem("insure_user");
+        localStorage.removeItem("insure_last_activity");
       }
     }
   },

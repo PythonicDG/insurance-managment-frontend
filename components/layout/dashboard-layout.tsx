@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -29,11 +30,30 @@ export function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
 
+  // Silent inactivity auto-logout (5 minutes timeout)
+  useInactivityTimer({
+    enabled: isAuthChecked,
+  });
+
   useEffect(() => {
-    // Check authentication asynchronously
+    // Check authentication: session must exist in sessionStorage (or migrate from localStorage)
     const timer = setTimeout(() => {
       if (typeof window !== "undefined") {
-        const token = localStorage.getItem("insure_token");
+        let token = sessionStorage.getItem("insure_token");
+        if (!token) {
+          // If legacy token was in localStorage, migrate to sessionStorage
+          token = localStorage.getItem("insure_token");
+          if (token) {
+            sessionStorage.setItem("insure_token", token);
+            localStorage.removeItem("insure_token");
+            const user = localStorage.getItem("insure_user");
+            if (user) {
+              sessionStorage.setItem("insure_user", user);
+              localStorage.removeItem("insure_user");
+            }
+          }
+        }
+
         if (!token) {
           router.replace("/");
           return;
@@ -56,6 +76,8 @@ export function DashboardLayout({
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
+
+
       {/* Sidebar: Desktop collapsible & Mobile flyout drawer */}
       <Sidebar
         collapsed={collapsed}
@@ -84,3 +106,4 @@ export function DashboardLayout({
     </div>
   );
 }
+

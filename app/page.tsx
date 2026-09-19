@@ -34,6 +34,7 @@ export default function LoginPage() {
   });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   // Toast state
   const [toast, setToast] = useState<{
@@ -48,16 +49,29 @@ export default function LoginPage() {
     message: "",
   });
 
-  // Redirect if already authenticated
+  // Check URL query param for inactivity or session expiry & redirect if already authenticated
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        const token = localStorage.getItem("insure_token");
-        if (token) {
+        const params = new URLSearchParams(window.location.search);
+        const reason = params.get("reason");
+        if (reason === "inactivity") {
+          setInfoMessage(
+            "You were automatically logged out after 5 minutes of inactivity."
+          );
+        } else if (reason === "session_expired") {
+          setInfoMessage(
+            "Your session has expired. Please sign in again to continue."
+          );
+        }
+
+        const token = sessionStorage.getItem("insure_token");
+        // Only redirect to dashboard if authenticated in this session AND no logout reason was passed
+        if (token && !reason) {
           router.replace("/dashboard");
         }
       } catch {
-        // Ignore localStorage error
+        // Ignore storage error
       }
     }
   }, [router]);
@@ -65,6 +79,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setInfoMessage(null);
 
     const trimmedUser = username.trim();
     if (!trimmedUser) {
@@ -101,14 +116,20 @@ export default function LoginPage() {
         const token = data.token;
         const user = data.user;
 
-        // Persist token and user in storage
+        // Persist token & user in sessionStorage so session is tied to the window/tab lifecycle.
+        // When user closes the window or tab, sessionStorage is cleared automatically.
         if (typeof window !== "undefined") {
           if (token) {
-            localStorage.setItem("insure_token", token);
+            sessionStorage.setItem("insure_token", token);
+            localStorage.removeItem("insure_token");
           }
           if (user) {
-            localStorage.setItem("insure_user", JSON.stringify(user));
+            sessionStorage.setItem("insure_user", JSON.stringify(user));
+            localStorage.removeItem("insure_user");
           }
+          sessionStorage.setItem("insure_last_activity", Date.now().toString());
+          localStorage.removeItem("insure_last_activity");
+
           if (rememberMe) {
             localStorage.setItem("insure_remember_user", trimmedUser);
           } else {
@@ -188,6 +209,14 @@ export default function LoginPage() {
               Sign in to manage your policy portfolio, customer ledgers, and reports.
             </p>
           </div>
+
+          {/* Inactivity / Session Expiry Info Alert */}
+          {infoMessage && (
+            <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200/80 text-xs text-amber-800 leading-relaxed flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>{infoMessage}</span>
+            </div>
+          )}
 
           {/* Error Alert */}
           {errorMessage && (
