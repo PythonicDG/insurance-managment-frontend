@@ -66,9 +66,20 @@ export default function LoginPage() {
         }
 
         const token = sessionStorage.getItem("insure_token");
-        // Only redirect to dashboard if authenticated in this session AND no logout reason was passed
-        if (token && !reason) {
+        const lastActivityStr = sessionStorage.getItem("insure_last_activity");
+        const lastActivity = lastActivityStr
+          ? parseInt(lastActivityStr, 10)
+          : 0;
+        const isExpired =
+          !lastActivity || Date.now() - lastActivity > 5 * 60 * 1000;
+
+        // Only redirect to dashboard if authenticated and active within 5 minutes
+        if (token && !reason && !isExpired) {
           router.replace("/dashboard");
+        } else if (token && isExpired) {
+          sessionStorage.removeItem("insure_token");
+          sessionStorage.removeItem("insure_user");
+          sessionStorage.removeItem("insure_last_activity");
         }
       } catch {
         // Ignore storage error

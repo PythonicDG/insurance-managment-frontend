@@ -7,10 +7,10 @@ export const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Helper to get token (prioritizing sessionStorage for tab/window session lifecycle)
+// Helper to get token (strictly sessionStorage for tab/window session lifecycle)
 const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem("insure_token") || localStorage.getItem("insure_token");
+  return sessionStorage.getItem("insure_token");
 };
 
 // Attach token to every outgoing request
@@ -374,9 +374,7 @@ export const authService = {
   getCurrentUser(): UserProfile | null {
     if (typeof window === "undefined") return null;
     try {
-      const saved =
-        sessionStorage.getItem("insure_user") ||
-        localStorage.getItem("insure_user");
+      const saved = sessionStorage.getItem("insure_user");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;

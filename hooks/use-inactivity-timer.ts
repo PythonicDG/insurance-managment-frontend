@@ -50,23 +50,33 @@ export function useInactivityTimer({
     }
   }, [enabled]);
 
+  // Check if session has exceeded timeout
+  const checkInactivity = useCallback(() => {
+    if (isLoggingOutRef.current || typeof window === "undefined") return;
+
+    const storedActivity =
+      sessionStorage.getItem("insure_last_activity") ||
+      localStorage.getItem("insure_last_activity");
+    const lastActivityTime = storedActivity
+      ? parseInt(storedActivity, 10)
+      : 0;
+
+    const elapsed = Date.now() - lastActivityTime;
+
+    if (!lastActivityTime || elapsed >= timeoutMs) {
+      handleAutoLogout();
+    }
+  }, [timeoutMs, handleAutoLogout]);
+
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
 
-    // Check if token exists in sessionStorage or localStorage
-    const token =
-      sessionStorage.getItem("insure_token") ||
-      localStorage.getItem("insure_token");
+    // Check if token exists in sessionStorage
+    const token = sessionStorage.getItem("insure_token");
     if (!token) return;
 
-    // Initialize last_activity if not set
-    const now = Date.now();
-    if (!sessionStorage.getItem("insure_last_activity")) {
-      sessionStorage.setItem("insure_last_activity", now.toString());
-    }
-    if (!localStorage.getItem("insure_last_activity")) {
-      localStorage.setItem("insure_last_activity", now.toString());
-    }
+    // Check inactivity immediately on hook mount
+    checkInactivity();
 
     // User interaction events to detect active usage
     const activityEvents = [
@@ -86,9 +96,28 @@ export function useInactivityTimer({
       window.addEventListener(evt, handleUserActivity, { passive: true });
     });
 
+    // Detect when laptop lid opens, phone is unlocked, or tab returns to view
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkInactivity();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Detect window focus (switching back to browser)
+    const handleFocus = () => {
+      checkInactivity();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    // Detect page restored from background/bfcache
+    const handlePageShow = () => {
+      checkInactivity();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+
     // Cross-tab sync via storage event
     const handleStorage = (event: StorageEvent) => {
-      // If token was cleared in another tab, log out immediately
       if (
         (event.key === "insure_token" && !event.newValue) ||
         (event.key === "insure_logout_event" && event.newValue)
@@ -96,35 +125,22 @@ export function useInactivityTimer({
         router.replace("/");
       }
     };
-
     window.addEventListener("storage", handleStorage);
 
     // Periodic check every 1 second
     const interval = setInterval(() => {
-      if (isLoggingOutRef.current) return;
-
-      const storedActivity =
-        sessionStorage.getItem("insure_last_activity") ||
-        localStorage.getItem("insure_last_activity");
-      const lastActivityTime = storedActivity
-        ? parseInt(storedActivity, 10)
-        : Date.now();
-
-      const elapsed = Date.now() - lastActivityTime;
-
-      if (elapsed >= timeoutMs) {
-        // 5 minutes of inactivity reached -> automatic silent logout
-        clearInterval(interval);
-        handleAutoLogout();
-      }
+      checkInactivity();
     }, 1000);
 
     return () => {
       activityEvents.forEach((evt) => {
         window.removeEventListener(evt, handleUserActivity);
       });
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("storage", handleStorage);
       clearInterval(interval);
     };
-  }, [enabled, timeoutMs, recordActivity, handleAutoLogout, router]);
+  }, [enabled, checkInactivity, recordActivity, router]);
 }
