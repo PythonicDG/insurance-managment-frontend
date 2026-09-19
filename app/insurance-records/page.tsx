@@ -615,25 +615,46 @@ function InsuranceRecordsContent() {
       "Status",
     ];
 
-    const rows = records.map((r) => [
-      r.entry_date,
-      `"${r.customer?.name || ""}"`,
-      `"${r.customer?.phone || ""}"`,
-      `"${r.vehicle?.vehicle_number || ""}"`,
-      `"${r.insurance_company?.name || ""}"`,
-      r.total_premium,
-      r.paid_amount || 0,
-      r.balance || 0,
-      r.status,
-    ]);
+    const escapeCsv = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      return `"${String(val).replace(/"/g, '""')}"`;
+    };
+
+    const rows = records.map((r) => {
+      const rawDate = r.entry_date || (r.created_at ? r.created_at.split("T")[0] : "");
+      const formattedDate = rawDate ? formatDisplayDate(rawDate) : "";
+      // Prepend ="..." so spreadsheet applications like Excel treat the date as text
+      // and do not auto-convert it to a date serial that displays as ###### due to cell width
+      const entryDateCell = formattedDate ? `="${formattedDate}"` : '""';
+      const phoneCell = r.customer?.phone ? `="${r.customer.phone}"` : '""';
+
+      return [
+        entryDateCell,
+        escapeCsv(r.customer?.name),
+        phoneCell,
+        escapeCsv(r.vehicle?.vehicle_number),
+        escapeCsv(r.insurance_company?.name),
+        typeof r.total_premium === "number"
+          ? r.total_premium
+          : parseFloat(String(r.total_premium || 0)) || 0,
+        typeof r.paid_amount === "number"
+          ? r.paid_amount
+          : parseFloat(String(r.paid_amount || 0)) || 0,
+        typeof r.balance === "number"
+          ? r.balance
+          : parseFloat(String(r.balance || 0)) || 0,
+        escapeCsv(r.status),
+      ];
+    });
 
     const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      "\uFEFF" +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\r\n");
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", url);
     link.setAttribute(
       "download",
       `Insurance_Records_${formatLocalDateISO(new Date())}.csv`
@@ -641,12 +662,415 @@ function InsuranceRecordsContent() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     showToast("success", "Export Ready", "CSV file generated from current records.");
   };
 
-  // Save as PDF / Print All
-  const handlePrint = () => {
-    window.print();
+  // Print / Save as PDF Helper
+  const printRecordsReport = (
+    recordsToPrint: InsuranceRecordItem[],
+    filters: {
+      company: string;
+      status: string;
+      fromDate: string;
+      toDate: string;
+      search: string;
+    }
+  ) => {
+    const totalPremium = recordsToPrint.reduce((sum, r) => {
+      const val =
+        typeof r.total_premium === "number"
+          ? r.total_premium
+          : parseFloat(String(r.total_premium || 0)) || 0;
+      return sum + val;
+    }, 0);
+
+    const formatCurrency = (val: number) =>
+      `₹${val.toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+
+    const generatedDate = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    const filterBadges: string[] = [];
+    if (filters.company && filters.company !== "All Companies") {
+      filterBadges.push(`Company: ${filters.company}`);
+    }
+    if (filters.status && filters.status !== "All Statuses") {
+      filterBadges.push(`Status: ${filters.status}`);
+    }
+    if (filters.fromDate || filters.toDate) {
+      const fDate = filters.fromDate ? formatDisplayDate(filters.fromDate) : "Any";
+      const tDate = filters.toDate ? formatDisplayDate(filters.toDate) : "Present";
+      filterBadges.push(`Date: ${fDate} to ${tDate}`);
+    }
+    if (filters.search) {
+      filterBadges.push(`Search: "${filters.search}"`);
+    }
+
+    const rowsHtml = recordsToPrint
+      .map((r, idx) => {
+        const rawDate = r.entry_date || (r.created_at ? r.created_at.split("T")[0] : "");
+        const displayDate = rawDate ? formatDisplayDate(rawDate) : "—";
+        const customerName = r.customer?.name?.trim() || "—";
+        const address = r.customer?.address?.trim() || "—";
+        const phone = r.customer?.phone?.trim() || "—";
+        const vehicleNum = r.vehicle?.vehicle_number?.trim() || "—";
+        const companyName = r.insurance_company?.name?.trim() || "—";
+        const prem =
+          typeof r.total_premium === "number"
+            ? r.total_premium
+            : parseFloat(String(r.total_premium || 0)) || 0;
+
+        return `
+          <tr>
+            <td class="col-idx">${idx + 1}</td>
+            <td class="col-date">${displayDate}</td>
+            <td class="col-name">${customerName}</td>
+            <td class="col-addr">${address}</td>
+            <td class="col-phone">${phone}</td>
+            <td class="col-veh">${vehicleNum}</td>
+            <td class="col-comp">${companyName}</td>
+            <td class="col-prem">${formatCurrency(prem)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Insurance Records Report</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 10mm 12mm;
+            }
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              font-size: 11px;
+              color: #0f172a;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              line-height: 1.4;
+            }
+            .report-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              border-bottom: 2.5px solid #2563eb;
+              padding-bottom: 10px;
+              margin-bottom: 12px;
+            }
+            .report-title {
+              font-size: 19px;
+              font-weight: 800;
+              color: #0f172a;
+              margin: 0 0 3px 0;
+              letter-spacing: -0.5px;
+            }
+            .report-subtitle {
+              font-size: 11px;
+              color: #64748b;
+              margin: 0;
+            }
+            .report-meta {
+              text-align: right;
+              font-size: 10px;
+              color: #64748b;
+              line-height: 1.5;
+            }
+            .report-meta strong {
+              color: #0f172a;
+            }
+            .filter-chips {
+              margin-bottom: 12px;
+              display: flex;
+              flex-wrap: wrap;
+              gap: 6px;
+            }
+            .chip {
+              display: inline-block;
+              background: #f1f5f9;
+              color: #475569;
+              font-size: 10px;
+              font-weight: 600;
+              padding: 2px 8px;
+              border-radius: 4px;
+              border: 1px solid #e2e8f0;
+            }
+            .table-container {
+              width: 100%;
+              border: 1px solid #cbd5e1;
+              border-radius: 6px;
+              overflow: hidden;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+            thead {
+              display: table-header-group;
+            }
+            thead th {
+              background-color: #f1f5f9;
+              color: #334155;
+              font-weight: 700;
+              font-size: 10px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              padding: 9px 8px;
+              text-align: left;
+              border-bottom: 2px solid #94a3b8;
+              border-right: 1px solid #cbd5e1;
+            }
+            thead th:last-child {
+              border-right: none;
+            }
+            tbody tr {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            tbody tr:nth-child(even) {
+              background-color: #f8fafc;
+            }
+            tbody td {
+              padding: 8px 8px;
+              vertical-align: middle;
+              border-bottom: 1px solid #e2e8f0;
+              border-right: 1px solid #e2e8f0;
+              word-wrap: break-word;
+              font-size: 11px;
+            }
+            tbody td:last-child {
+              border-right: none;
+            }
+            tbody tr:last-child td {
+              border-bottom: none;
+            }
+            .col-idx {
+              width: 32px;
+              text-align: center;
+              color: #64748b;
+              font-weight: 600;
+              font-size: 10px;
+            }
+            .col-date {
+              width: 88px;
+              white-space: nowrap;
+              font-weight: 600;
+              color: #334155;
+            }
+            .col-name {
+              width: 135px;
+              font-weight: 700;
+              color: #0f172a;
+              font-size: 11.5px;
+            }
+            .col-addr {
+              color: #475569;
+              font-size: 10.5px;
+              line-height: 1.35;
+            }
+            .col-phone {
+              width: 105px;
+              white-space: nowrap;
+              font-family: monospace;
+              font-size: 11px;
+              color: #334155;
+            }
+            .col-veh {
+              width: 100px;
+              white-space: nowrap;
+              font-family: monospace;
+              font-weight: 700;
+              color: #0f172a;
+            }
+            .col-comp {
+              width: 115px;
+              font-weight: 600;
+              color: #334155;
+            }
+            .col-prem {
+              width: 105px;
+              text-align: right;
+              font-weight: 700;
+              font-size: 11.5px;
+              color: #0f172a;
+              white-space: nowrap;
+              padding-right: 10px;
+            }
+            .summary-bar {
+              margin-top: 14px;
+              display: flex;
+              justify-content: flex-end;
+              gap: 24px;
+              padding: 10px 16px;
+              background: #f8fafc;
+              border: 1px solid #cbd5e1;
+              border-radius: 6px;
+              font-size: 11px;
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .summary-item strong {
+              color: #0f172a;
+              font-weight: 700;
+            }
+            .summary-total {
+              color: #2563eb;
+              font-size: 12.5px;
+              font-weight: 800;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report-header">
+            <div>
+              <h1 class="report-title">INSURANCE RECORDS REPORT</h1>
+              <p class="report-subtitle">Policy Register &amp; Customer Ledger Summary</p>
+            </div>
+            <div class="report-meta">
+              <div>Printed On: <strong>${generatedDate}</strong></div>
+              <div>Total Records: <strong>${recordsToPrint.length}</strong></div>
+            </div>
+          </div>
+
+          ${
+            filterBadges.length > 0
+              ? `<div class="filter-chips">${filterBadges
+                  .map((b) => `<span class="chip">${b}</span>`)
+                  .join("")}</div>`
+              : ""
+          }
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-idx">#</th>
+                  <th class="col-date">Entry Date</th>
+                  <th class="col-name">Customer Name</th>
+                  <th class="col-addr">Address</th>
+                  <th class="col-phone">Mobile Number</th>
+                  <th class="col-veh">Vehicle Number</th>
+                  <th class="col-comp">Insurance Company</th>
+                  <th class="col-prem" style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="summary-bar">
+            <div class="summary-item">Total Records: <strong>${recordsToPrint.length}</strong></div>
+            <div class="summary-item">Total Premium: <span class="summary-total">${formatCurrency(totalPremium)}</span></div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 1000);
+      }, 250);
+    }
+  };
+
+  // Save as PDF / Print All Handler
+  const handlePrint = async () => {
+    if (records.length === 0) {
+      showToast("info", "No records", "There are no records to print.");
+      return;
+    }
+
+    let recordsToPrint = records;
+
+    // If total records exceed current page, fetch all matching records for the complete PDF
+    if (totalCount > records.length) {
+      try {
+        showToast("info", "Preparing Report", "Loading all filtered records for PDF...");
+        const params: Record<string, string | number> = {
+          paginate: "false",
+        };
+        if (searchQuery.trim()) params.search = searchQuery.trim();
+        if (selectedCompany !== "All Companies") {
+          const matched = companies.find((c) => c.name === selectedCompany);
+          if (matched) params.insurance_company_id = matched.id;
+        }
+        if (selectedStatus !== "All Statuses") {
+          params.status = selectedStatus.toLowerCase().replace(" ", "_");
+        }
+        if (fromDate.trim()) {
+          const norm = normalizeDateToBackend(fromDate.trim());
+          if (norm) params.entry_date_from = norm;
+        }
+        if (toDate.trim()) {
+          const norm = normalizeDateToBackend(toDate.trim());
+          if (norm) params.entry_date_to = norm;
+        }
+        if (sortField) {
+          params.ordering = sortDirection === "desc" ? `-${sortField}` : sortField;
+        }
+
+        const res = await insuranceRecordService.getAll(params);
+        const all = Array.isArray(res)
+          ? res
+          : (res as { results?: InsuranceRecordItem[] })?.results || [];
+        if (all.length > 0) {
+          recordsToPrint = all.map(augmentRecordWithPayments);
+        }
+      } catch {
+        recordsToPrint = records;
+      }
+    }
+
+    printRecordsReport(recordsToPrint, {
+      company: selectedCompany,
+      status: selectedStatus,
+      fromDate,
+      toDate,
+      search: searchQuery,
+    });
   };
 
   // Pagination display values
@@ -1206,7 +1630,7 @@ function InsuranceRecordsContent() {
                         onClick={() => handleSort("total_premium")}
                       >
                         <div className="flex items-center gap-1">
-                          <span>TOTAL PREMIUM</span>
+                          <span>TOTAL</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
