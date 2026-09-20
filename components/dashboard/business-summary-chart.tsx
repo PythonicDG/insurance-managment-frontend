@@ -586,8 +586,8 @@ export function BusinessSummaryChart({
           </div>
         )}
 
-        {/* Bars Container - strictly 6 months, overflow-hidden to prevent spilling */}
-        <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[200px] px-2 sm:px-4 relative z-10 w-full overflow-hidden">
+        {/* Bars Container - strictly 6 months, overflow-visible so tooltip can render cleanly */}
+        <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[200px] px-2 sm:px-4 relative z-10 w-full overflow-visible">
           {chartData.map((item, idx) => {
             const collHeightPct =
               maxVal > 0 ? (item.premium_collected / maxVal) * 100 : 0;
@@ -598,36 +598,66 @@ export function BusinessSummaryChart({
             return (
               <div
                 key={`${item.year}-${item.month}-${idx}`}
-                className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-0"
+                className={`flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-0 rounded-xl transition-colors py-1 ${
+                  isHovered ? "bg-slate-100/60" : "bg-transparent"
+                }`}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => setHoveredIdx(hoveredIdx === idx ? null : idx)}
               >
                 {/* Tooltip */}
                 {isHovered && (
-                  <div className="absolute -top-20 z-30 bg-slate-900 text-white rounded-xl py-2 px-3 text-xs shadow-xl pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
-                    <div className="font-semibold border-b border-slate-700 pb-1 mb-1 text-[11px] text-slate-300">
+                  <div
+                    className={`absolute bottom-[calc(100%+8px)] z-40 bg-slate-900/95 backdrop-blur-xs text-white rounded-xl py-2 px-3 text-xs shadow-2xl pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 ring-1 ring-white/10 ${
+                      idx === 0
+                        ? "left-0"
+                        : idx === chartData.length - 1
+                        ? "right-0"
+                        : "left-1/2 -translate-x-1/2"
+                    }`}
+                  >
+                    <div className="font-semibold border-b border-slate-700/80 pb-1 mb-1.5 text-[11px] text-slate-300">
                       {item.month} {item.year}
                     </div>
-                    <div className="flex items-center justify-between gap-3 text-emerald-400">
-                      <span>Collected:</span>
-                      <span className="font-medium">
-                        {formatINR(item.premium_collected)}
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-3 text-emerald-400">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          <span>Collected:</span>
+                        </span>
+                        <span className="font-semibold tabular-nums">
+                          {formatINR(item.premium_collected)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-rose-400">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                          <span>Outstanding:</span>
+                        </span>
+                        <span className="font-semibold tabular-nums">
+                          {formatINR(item.outstanding)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-3 text-rose-400">
-                      <span>Outstanding:</span>
-                      <span className="font-medium">
-                        {formatINR(item.outstanding)}
-                      </span>
-                    </div>
+
+                    {/* Tooltip Caret Pointer */}
+                    <div
+                      className={`absolute -bottom-1 w-2 h-2 bg-slate-900 rotate-45 ${
+                        idx === 0
+                          ? "left-5"
+                          : idx === chartData.length - 1
+                          ? "right-5"
+                          : "left-1/2 -translate-x-1/2"
+                      }`}
+                    />
                   </div>
                 )}
 
                 {/* Grouped Dual Bars */}
-                <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 md:gap-2 h-full">
+                <div className="w-full flex-1 flex items-end justify-center gap-1 sm:gap-1.5 md:gap-2 min-h-0">
                   {/* Blue Bar: Premium Collected */}
                   <div
-                    className="w-3 sm:w-4.5 md:w-5 bg-blue-600 rounded-t-sm sm:rounded-t transition-all duration-300 hover:brightness-110 shrink-0"
+                    className="w-3 sm:w-4.5 md:w-5 bg-blue-600 rounded-t-sm sm:rounded-t transition-all duration-300 group-hover:brightness-110 hover:brightness-110 shrink-0"
                     style={{
                       height: `${Math.max(collHeightPct, 4)}%`,
                     }}
@@ -635,7 +665,7 @@ export function BusinessSummaryChart({
 
                   {/* Red/Coral Bar: Outstanding */}
                   <div
-                    className="w-3 sm:w-4.5 md:w-5 bg-red-600 rounded-t-sm sm:rounded-t transition-all duration-300 hover:brightness-110 shrink-0"
+                    className="w-3 sm:w-4.5 md:w-5 bg-red-600 rounded-t-sm sm:rounded-t transition-all duration-300 group-hover:brightness-110 hover:brightness-110 shrink-0"
                     style={{
                       height: `${Math.max(outHeightPct, 4)}%`,
                     }}
@@ -644,7 +674,7 @@ export function BusinessSummaryChart({
 
                 {/* Month Label */}
                 <span
-                  className={`mt-2 text-[11px] sm:text-xs font-semibold transition-colors duration-150 truncate max-w-full text-center ${
+                  className={`mt-2 shrink-0 text-[11px] sm:text-xs font-semibold transition-colors duration-150 truncate max-w-full text-center ${
                     isHovered ? "text-blue-600 font-bold" : "text-slate-500"
                   }`}
                 >
