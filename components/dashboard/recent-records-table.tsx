@@ -8,7 +8,7 @@ import { formatINR } from "./dashboard-kpi-card";
 
 interface RecentRecordsTableProps {
   records: DashboardRecentRecord[];
-  onAddNewRecord: () => void;
+  onAddNewRecord?: () => void;
   loading?: boolean;
 }
 
@@ -43,14 +43,13 @@ export function RecentRecordsTable({
           </h3>
         </div>
 
-        <button
-          type="button"
-          onClick={onAddNewRecord}
+        <Link
+          href="/insurance-records/new"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow transition-all duration-150 cursor-pointer active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Add New Record</span>
-        </button>
+        </Link>
       </div>
 
       {/* Table matching screenshot */}

@@ -347,7 +347,6 @@ export default function DashboardPage() {
         {/* Row 4: Recent Insurance Records Table with + Add New Record */}
         <RecentRecordsTable
           records={data.recent_records}
-          onAddNewRecord={() => setIsAddModalOpen(true)}
           loading={loading}
         />
       </div>

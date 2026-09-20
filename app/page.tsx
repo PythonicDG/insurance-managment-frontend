@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, Loader2, Info } from "lucide-react";
 import axios from "axios";
-import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
+// import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
 import { Toast, ToastType } from "@/components/ui/toast";
 
 export default function LoginPage() {
@@ -206,7 +206,7 @@ export default function LoginPage() {
       />
 
       {/* Brand Panel: Compact Header on Mobile, Rich Side Panel on Desktop */}
-      <AuthBrandPanel />
+      {/* <AuthBrandPanel /> */}
 
       {/* Login Form Section */}
       <section className="flex-1 flex items-center justify-center p-4 sm:p-8 lg:p-12 xl:p-16">
@@ -216,9 +216,9 @@ export default function LoginPage() {
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Admin Login
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+            {/* <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
               Sign in to manage your policy portfolio, customer ledgers, and reports.
-            </p>
+            </p> */}
           </div>
 
           {/* Inactivity / Session Expiry Info Alert */}
@@ -347,12 +347,12 @@ export default function LoginPage() {
           </form>
 
           {/* Admin Note */}
-          <div className="mt-6 sm:mt-8 flex items-start gap-2 text-slate-500 bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border border-slate-200/60 sm:border-0">
+          {/* <div className="mt-6 sm:mt-8 flex items-start gap-2 text-slate-500 bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none border border-slate-200/60 sm:border-0">
             <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
             <p className="text-xs leading-relaxed text-slate-500">
               Single business owner / admin access. Contact support for account issues.
             </p>
-          </div>
+          </div> */}
         </div>
       </section>
     </main>
