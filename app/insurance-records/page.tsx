@@ -1139,6 +1139,7 @@ function InsuranceRecordsContent() {
           onEdit={handleOpenEditModal}
           onMakePayment={handleOpenPaymentModal}
           onRenew={handleOpenRenewModal}
+          onSelectRecord={handleViewRecord}
         />
       ) : (
         <div className="space-y-4">

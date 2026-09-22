@@ -13,14 +13,23 @@ import {
   RefreshCw,
   History,
   ShieldCheck,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import {
   InsuranceRecordItem,
   PaymentTransaction,
+  BusinessSettings,
   paymentService,
   insuranceRecordService,
+  settingsService,
 } from "@/lib/api";
 import { formatDisplayDate } from "@/lib/date-utils";
+import {
+  printTransactionStatement,
+  printSinglePaymentReceipt,
+  printVehicleHistorySummary,
+} from "@/lib/print-transaction-receipt";
 
 interface InsuranceRecordDetailProps {
   record: InsuranceRecordItem;
@@ -28,6 +37,7 @@ interface InsuranceRecordDetailProps {
   onEdit: (record: InsuranceRecordItem) => void;
   onMakePayment: (record: InsuranceRecordItem) => void;
   onRenew?: (record: InsuranceRecordItem) => void;
+  onSelectRecord?: (record: InsuranceRecordItem) => void;
 }
 
 export function InsuranceRecordDetail({
@@ -36,6 +46,7 @@ export function InsuranceRecordDetail({
   onEdit,
   onMakePayment,
   onRenew,
+  onSelectRecord,
 }: InsuranceRecordDetailProps) {
   // Format Date Helper (avoids UTC date shifts)
   const formatDate = (dateString?: string) => {
@@ -88,6 +99,22 @@ export function InsuranceRecordDetail({
         : parseFloat(String(record.paid_amount || 0));
     return Math.max(0, totalPremium - initialPaid);
   });
+
+  const [agencySettings, setAgencySettings] = useState<BusinessSettings | null>(null);
+  const [printingRecordId, setPrintingRecordId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    settingsService
+      .get()
+      .then((settings) => {
+        if (mounted) setAgencySettings(settings);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -164,6 +191,85 @@ export function InsuranceRecordDetail({
   };
 
   const remarksText = record.remarks || "No underwriting remarks or notes recorded for this policy.";
+
+  // Handlers for printing transactions
+  const handlePrintCurrentTransactions = () => {
+    printTransactionStatement({
+      record: currentRecord,
+      transactions,
+      settings: agencySettings,
+      totalPaid: paidAmount,
+      balance: balance,
+    });
+  };
+
+  const handlePrintRecordTransactions = async (item: InsuranceRecordItem) => {
+    if (item.id === record.id) {
+      handlePrintCurrentTransactions();
+      return;
+    }
+
+    setPrintingRecordId(item.id);
+    try {
+      const history = await paymentService.getHistory(item.id);
+      const freshTxs =
+        history?.payments ||
+        history?.transactions ||
+        item.payments ||
+        item.transactions ||
+        [];
+      const paid =
+        typeof history?.total_paid !== "undefined" && history?.total_paid !== null
+          ? parseFloat(String(history.total_paid)) || 0
+          : typeof item.total_paid !== "undefined" && item.total_paid !== null
+          ? parseFloat(String(item.total_paid)) || 0
+          : typeof item.paid_amount === "number"
+          ? item.paid_amount
+          : 0;
+      const bal =
+        typeof history?.outstanding !== "undefined" && history?.outstanding !== null
+          ? parseFloat(String(history.outstanding)) || 0
+          : typeof item.outstanding !== "undefined" && item.outstanding !== null
+          ? parseFloat(String(item.outstanding)) || 0
+          : typeof item.balance === "number"
+          ? item.balance
+          : 0;
+
+      printTransactionStatement({
+        record: item,
+        transactions: freshTxs,
+        settings: agencySettings,
+        totalPaid: paid,
+        balance: bal,
+      });
+    } catch {
+      printTransactionStatement({
+        record: item,
+        transactions: item.payments || item.transactions || [],
+        settings: agencySettings,
+      });
+    } finally {
+      setPrintingRecordId(null);
+    }
+  };
+
+  const handlePrintSingleTransaction = (tx: PaymentTransaction) => {
+    printSinglePaymentReceipt({
+      record: currentRecord,
+      transaction: tx,
+      settings: agencySettings,
+    });
+  };
+
+  const handlePrintVehicleHistorySummary = () => {
+    printVehicleHistorySummary({
+      vehicleNumber: record.vehicle?.vehicle_number || "Vehicle",
+      vehicleType: record.vehicle?.vehicle_type,
+      customerName: record.customer?.name,
+      historyRecords: vehicleHistory.length > 0 ? vehicleHistory : [record],
+      settings: agencySettings,
+    });
+  };
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -442,20 +548,32 @@ export function InsuranceRecordDetail({
 
         {/* Transaction History Sub-table */}
         <div>
-          <div className="flex items-center justify-between mb-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
             <h4 className="text-xs font-bold text-slate-800">
               Transaction History
             </h4>
-            {balance > 0 && (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => onMakePayment(currentRecord)}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                onClick={handlePrintCurrentTransactions}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                title="Print official transaction statement & receipt"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>Add Transaction</span>
+                <Printer className="w-3.5 h-3.5 text-blue-600" />
+                <span>Print Statement</span>
               </button>
-            )}
+
+              {balance > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onMakePayment(currentRecord)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/70 hover:bg-blue-100/70 border border-blue-200/80 rounded-xl transition-colors cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Add Transaction</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto border border-slate-100 rounded-xl">
@@ -482,6 +600,7 @@ export function InsuranceRecordDetail({
                     <th className="py-2.5 px-4 uppercase tracking-wider">Payment Mode</th>
                     <th className="py-2.5 px-4 uppercase tracking-wider">Amount</th>
                     <th className="py-2.5 px-4 uppercase tracking-wider">Note / Remarks</th>
+                    <th className="py-2.5 px-4 uppercase tracking-wider text-right">Receipt</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -507,6 +626,17 @@ export function InsuranceRecordDetail({
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                           )}
                         </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintSingleTransaction(tx)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-slate-50 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          title="Print individual payment voucher receipt"
+                        >
+                          <Printer className="w-3 h-3 text-blue-600" />
+                          <span>Receipt</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -536,18 +666,31 @@ export function InsuranceRecordDetail({
 
       {/* Card 6: Vehicle Insurance History */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-slate-500" />
             <h3 className="text-sm font-bold text-slate-900">
               Vehicle Insurance History ({record.vehicle?.vehicle_number || "Vehicle"})
             </h3>
           </div>
-          {vehicleHistory.length > 0 && (
-            <span className="text-xs text-slate-500 font-medium">
-              {vehicleHistory.length} total record{vehicleHistory.length === 1 ? "" : "s"}
-            </span>
-          )}
+          <div className="flex items-center gap-2.5">
+            {vehicleHistory.length > 0 && (
+              <>
+                <span className="text-xs text-slate-500 font-medium">
+                  {vehicleHistory.length} total record{vehicleHistory.length === 1 ? "" : "s"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handlePrintVehicleHistorySummary}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                  title="Print summary of all policies recorded under this vehicle"
+                >
+                  <Printer className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Print History Summary</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {isLoadingHistory ? (
@@ -566,6 +709,7 @@ export function InsuranceRecordDetail({
                   <th className="py-2.5 px-4 uppercase tracking-wider">Insurance Period</th>
                   <th className="py-2.5 px-4 uppercase tracking-wider">Premium</th>
                   <th className="py-2.5 px-4 uppercase tracking-wider">Status</th>
+                  <th className="py-2.5 px-4 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -604,6 +748,35 @@ export function InsuranceRecordDetail({
                           Expired / Inactive
                         </span>
                       )}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          disabled={printingRecordId === item.id}
+                          onClick={() => handlePrintRecordTransactions(item)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50/80 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                          title={`Print transaction history statement for Policy #${item.policy_number}`}
+                        >
+                          {printingRecordId === item.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                          ) : (
+                            <Printer className="w-3.5 h-3.5 text-blue-600" />
+                          )}
+                          <span>Print Transactions</span>
+                        </button>
+
+                        {item.id !== record.id && onSelectRecord && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectRecord(item)}
+                            className="px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg transition-colors cursor-pointer"
+                            title="View details of this policy"
+                          >
+                            View
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
