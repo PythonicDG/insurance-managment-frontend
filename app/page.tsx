@@ -49,37 +49,23 @@ export default function LoginPage() {
     message: "",
   });
 
-  // Check URL query param for inactivity or session expiry & redirect if already authenticated
+  // Check URL query param for session expiry & redirect if already authenticated in this tab
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const params = new URLSearchParams(window.location.search);
         const reason = params.get("reason");
-        if (reason === "inactivity") {
-          setInfoMessage(
-            "You were automatically logged out after 5 minutes of inactivity."
-          );
-        } else if (reason === "session_expired") {
+        if (reason === "session_expired") {
           setInfoMessage(
             "Your session has expired. Please sign in again to continue."
           );
         }
 
         const token = sessionStorage.getItem("insure_token");
-        const lastActivityStr = sessionStorage.getItem("insure_last_activity");
-        const lastActivity = lastActivityStr
-          ? parseInt(lastActivityStr, 10)
-          : 0;
-        const isExpired =
-          !lastActivity || Date.now() - lastActivity > 5 * 60 * 1000;
 
-        // Only redirect to dashboard if authenticated and active within 5 minutes
-        if (token && !reason && !isExpired) {
+        // Redirect to dashboard if authenticated in this tab
+        if (token && !reason) {
           router.replace("/dashboard");
-        } else if (token && isExpired) {
-          sessionStorage.removeItem("insure_token");
-          sessionStorage.removeItem("insure_user");
-          sessionStorage.removeItem("insure_last_activity");
         }
       } catch {
         // Ignore storage error
@@ -138,8 +124,6 @@ export default function LoginPage() {
             sessionStorage.setItem("insure_user", JSON.stringify(user));
             localStorage.removeItem("insure_user");
           }
-          sessionStorage.setItem("insure_last_activity", Date.now().toString());
-          localStorage.removeItem("insure_last_activity");
 
           if (rememberMe) {
             localStorage.setItem("insure_remember_user", trimmedUser);

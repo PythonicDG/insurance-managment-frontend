@@ -399,10 +399,6 @@ export const authService = {
   async pingSession(): Promise<boolean> {
     try {
       await apiClient.post("/auth/ping/");
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("insure_last_activity", Date.now().toString());
-        localStorage.setItem("insure_last_activity", Date.now().toString());
-      }
       return true;
     } catch {
       return false;

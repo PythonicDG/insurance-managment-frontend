@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
-import { authService } from "@/lib/api";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -31,54 +29,21 @@ export function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
 
-  // Silent inactivity auto-logout (5 minutes timeout)
-  useInactivityTimer({
-    enabled: isAuthChecked,
-  });
-
   useEffect(() => {
-    // Check authentication: token must exist in sessionStorage AND not be expired (> 5 mins)
-    const timer = setTimeout(async () => {
-      if (typeof window !== "undefined") {
-        // Clean any legacy token from localStorage to prevent cross-session leakage
-        localStorage.removeItem("insure_token");
-        localStorage.removeItem("insure_user");
+    // Check authentication: token must exist in sessionStorage (tied to browser tab)
+    if (typeof window !== "undefined") {
+      // Clean any legacy token from localStorage to prevent cross-session leakage
+      localStorage.removeItem("insure_token");
+      localStorage.removeItem("insure_user");
 
-        const token = sessionStorage.getItem("insure_token");
-        if (!token) {
-          router.replace("/");
-          return;
-        }
-
-        // Check if session has exceeded 5 minutes of inactivity (e.g. laptop/mobile closed)
-        const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
-        const lastActivityStr =
-          sessionStorage.getItem("insure_last_activity") ||
-          localStorage.getItem("insure_last_activity");
-        const lastActivity = lastActivityStr
-          ? parseInt(lastActivityStr, 10)
-          : 0;
-        const now = Date.now();
-
-        if (!lastActivity || now - lastActivity > INACTIVITY_TIMEOUT_MS) {
-          await authService.logout();
-          router.replace("/?reason=inactivity");
-          return;
-        }
-
-        // Verify session with backend keep-alive
-        const isValid = await authService.pingSession();
-        if (!isValid) {
-          await authService.logout();
-          router.replace("/?reason=session_expired");
-          return;
-        }
-
-        setIsAuthChecked(true);
+      const token = sessionStorage.getItem("insure_token");
+      if (!token) {
+        router.replace("/");
+        return;
       }
-    }, 0);
 
-    return () => clearTimeout(timer);
+      setIsAuthChecked(true);
+    }
   }, [router]);
 
   // Prevent flash before auth check
