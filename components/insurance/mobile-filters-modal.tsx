@@ -130,6 +130,8 @@ function MobileFiltersDialog({
 
   // Sort options list
   const sortOptions = [
+    { label: "Start Date: Newest First", field: "policy_start_date", dir: "desc" as const },
+    { label: "Start Date: Oldest First", field: "policy_start_date", dir: "asc" as const },
     { label: "Date: Newest First", field: "entry_date", dir: "desc" as const },
     { label: "Date: Oldest First", field: "entry_date", dir: "asc" as const },
     { label: "Customer Name: A to Z", field: "customer__name", dir: "asc" as const },

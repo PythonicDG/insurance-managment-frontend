@@ -604,7 +604,7 @@ function InsuranceRecordsContent() {
     }
 
     const headers = [
-      "Record Entry Date",
+      "Insurance Start Date",
       "Customer Name",
       "Phone",
       "Vehicle Number",
@@ -621,15 +621,15 @@ function InsuranceRecordsContent() {
     };
 
     const rows = records.map((r) => {
-      const rawDate = r.entry_date || (r.created_at ? r.created_at.split("T")[0] : "");
+      const rawDate = r.policy_start_date || "";
       const formattedDate = rawDate ? formatDisplayDate(rawDate) : "";
       // Prepend ="..." so spreadsheet applications like Excel treat the date as text
       // and do not auto-convert it to a date serial that displays as ###### due to cell width
-      const entryDateCell = formattedDate ? `="${formattedDate}"` : '""';
+      const startDateCell = formattedDate ? `="${formattedDate}"` : '""';
       const phoneCell = r.customer?.phone ? `="${r.customer.phone}"` : '""';
 
       return [
-        entryDateCell,
+        startDateCell,
         escapeCsv(r.customer?.name),
         phoneCell,
         escapeCsv(r.vehicle?.vehicle_number),
@@ -718,7 +718,7 @@ function InsuranceRecordsContent() {
 
     const rowsHtml = recordsToPrint
       .map((r, idx) => {
-        const rawDate = r.entry_date || (r.created_at ? r.created_at.split("T")[0] : "");
+        const rawDate = r.policy_start_date || "";
         const displayDate = rawDate ? formatDisplayDate(rawDate) : "—";
         const customerName = r.customer?.name?.trim() || "—";
         const address = r.customer?.address?.trim() || "—";
@@ -966,7 +966,7 @@ function InsuranceRecordsContent() {
               <thead>
                 <tr>
                   <th class="col-idx">#</th>
-                  <th class="col-date">Entry Date</th>
+                  <th class="col-date">Insurance Start Date</th>
                   <th class="col-name">Customer Name</th>
                   <th class="col-addr">Address</th>
                   <th class="col-phone">Mobile Number</th>
@@ -1591,10 +1591,10 @@ function InsuranceRecordsContent() {
                     <tr className="bg-slate-50/70 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                       <th
                         className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
-                        onClick={() => handleSort("entry_date")}
+                        onClick={() => handleSort("policy_start_date")}
                       >
                         <div className="flex items-center gap-1">
-                          <span>RECORD ENTRY DATE</span>
+                          <span>INSURANCE START DATE</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
@@ -1657,9 +1657,9 @@ function InsuranceRecordsContent() {
                           onClick={() => handleViewRecord(record)}
                           className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
                         >
-                          {/* Date */}
+                          {/* Insurance Start Date */}
                           <td className="py-3.5 px-4 font-normal text-slate-600 whitespace-nowrap">
-                            {formatDisplayDate(record.entry_date)}
+                            {formatDisplayDate(record.policy_start_date)}
                           </td>
 
                           {/* Customer Name */}
