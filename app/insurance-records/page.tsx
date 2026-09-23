@@ -1185,7 +1185,7 @@ function InsuranceRecordsContent() {
       ) : (
         <div className="space-y-4">
           {/* Top Row: Subtitle + Dynamic Backend Counters */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+          {/* <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
             <p className="text-xs sm:text-sm text-slate-500">
               Manage, search and track vehicle policy premium payment statuses
             </p>
@@ -1261,7 +1261,7 @@ function InsuranceRecordsContent() {
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* Mobile Filter & Search Section (Flipkart / Amazon Style) */}
           <div className="lg:hidden space-y-2.5">
@@ -1337,7 +1337,7 @@ function InsuranceRecordsContent() {
               </button>
 
               {/* Button 3: Status Filter Button */}
-              <button
+              {/* <button
                 type="button"
                 onClick={() => openMobileFilters("status")}
                 className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all cursor-pointer shadow-2xs ${
@@ -1350,7 +1350,7 @@ function InsuranceRecordsContent() {
                   {selectedStatus !== "All Statuses" ? selectedStatus : "Status"}
                 </span>
                 <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
-              </button>
+              </button> */}
 
               {/* Button 4: Date Filter Button */}
               <button
