@@ -444,7 +444,7 @@ function MobileFiltersDialog({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Select Payment Status
+                    Select Policy Status
                   </h3>
                   {draftStatus !== "All Statuses" && (
                     <button
@@ -470,11 +470,11 @@ function MobileFiltersDialog({
                       ),
                     },
                     {
-                      label: "Expiring Soon",
+                      label: "Expiring Soon (10 Days)",
                       value: "Expiring Soon",
                       badge: (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-200/60">
-                          Expiring Soon
+                          Next 10 Days
                         </span>
                       ),
                     },

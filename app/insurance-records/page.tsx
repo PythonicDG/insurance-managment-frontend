@@ -18,6 +18,7 @@ import {
   ChevronDown,
   X,
   Check,
+  Clock,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -93,13 +94,23 @@ function InsuranceRecordsContent() {
 
   // Summary Metrics State (across entire database)
   const [activePoliciesCount, setActivePoliciesCount] = useState(0);
+  const [expiringSoonCount, setExpiringSoonCount] = useState(0);
   const [outstandingCount, setOutstandingCount] = useState(0);
 
   // Filters state (defaults are empty so backend data isn't restricted)
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("All Companies");
-  const [selectedStatus, setSelectedStatus] = useState("All Statuses");
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => {
+    const statusParam = searchParams.get("status");
+    if (statusParam) {
+      const lower = statusParam.toLowerCase();
+      if (lower === "expiring_soon" || lower === "expiring") return "Expiring Soon";
+      if (lower === "active") return "Active";
+      if (lower === "expired") return "Expired";
+    }
+    return "All Statuses";
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   // Sorting state
@@ -225,12 +236,18 @@ function InsuranceRecordsContent() {
 
       const augmented = all.map(augmentRecordWithPayments);
       const active = augmented.filter((r) => (r.status || "").toLowerCase() === "active").length;
+      const expiringSoon = augmented.filter((r) => {
+        const s = (r.status || "").toLowerCase();
+        return s === "expiring_soon" || s === "expiring soon";
+      }).length;
       const outstanding = augmented.filter((r) => (r.balance ?? 0) > 0).length;
 
       setActivePoliciesCount(active);
+      setExpiringSoonCount(expiringSoon);
       setOutstandingCount(outstanding);
     } catch {
       setActivePoliciesCount(0);
+      setExpiringSoonCount(0);
       setOutstandingCount(0);
     }
   }, []);
@@ -327,6 +344,24 @@ function InsuranceRecordsContent() {
       active = false;
     };
   }, []);
+
+  // Synchronize status query param from URL (e.g. from Dashboard "Expiring Soon")
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    if (statusParam) {
+      const lower = statusParam.toLowerCase();
+      if (lower === "expiring_soon" || lower === "expiring") {
+        setSelectedStatus("Expiring Soon");
+        setCurrentPage(1);
+      } else if (lower === "active") {
+        setSelectedStatus("Active");
+        setCurrentPage(1);
+      } else if (lower === "expired") {
+        setSelectedStatus("Expired");
+        setCurrentPage(1);
+      }
+    }
+  }, [searchParams]);
 
   // Whenever filters, sort, or page change, query backend
   useEffect(() => {
@@ -436,24 +471,30 @@ function InsuranceRecordsContent() {
   };
 
   // Status Badge Helper
-  const renderStatusBadge = (status?: string) => {
+  const renderStatusBadge = (status?: string, daysLeft?: number) => {
     const s = (status || "").toLowerCase();
     if (s === "active") {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
           Active
         </span>
       );
     }
     if (s === "expiring_soon" || s === "expiring soon") {
+      let label = "Expiring Soon";
+      if (typeof daysLeft === "number") {
+        if (daysLeft === 0) label = "Expires Today";
+        else if (daysLeft === 1) label = "Expires Tomorrow";
+        else if (daysLeft > 1) label = `Expiring (${daysLeft}d)`;
+      }
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">
-          Expiring Soon
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+          {label}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
         Expired
       </span>
     );
@@ -1144,23 +1185,61 @@ function InsuranceRecordsContent() {
       ) : (
         <div className="space-y-4">
           {/* Top Row: Subtitle + Dynamic Backend Counters */}
-          {/* <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
             <p className="text-xs sm:text-sm text-slate-500">
               Manage, search and track vehicle policy premium payment statuses
             </p>
 
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <div className="inline-flex items-center gap-1.5 text-slate-700">
+            <div className="flex items-center gap-2.5 text-xs font-semibold flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStatus(selectedStatus === "Active" ? "All Statuses" : "Active");
+                  setCurrentPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  selectedStatus === "Active"
+                    ? "bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs"
+                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+                title="Filter active policies"
+              >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                 <span>
-                  Active Policies:{" "}
+                  Active:{" "}
                   <span className="font-bold text-slate-900">
                     {activePoliciesCount.toLocaleString("en-IN")}
                   </span>
                 </span>
-              </div>
+              </button>
 
-              <div className="inline-flex items-center gap-1.5 text-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStatus(
+                    selectedStatus === "Expiring Soon" ? "All Statuses" : "Expiring Soon"
+                  );
+                  setCurrentPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  selectedStatus === "Expiring Soon"
+                    ? "bg-amber-100 border-amber-400 text-amber-900 shadow-2xs font-bold"
+                    : expiringSoonCount > 0
+                    ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+                title="Filter policies expiring in the next 10 days"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                <span>
+                  Expiring Soon (10D):{" "}
+                  <span className="font-bold text-amber-900">
+                    {expiringSoonCount.toLocaleString("en-IN")}
+                  </span>
+                </span>
+              </button>
+
+              <div className="inline-flex items-center gap-1.5 text-slate-700 px-2 py-1">
                 <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                 <span>
                   Outstanding:{" "}
@@ -1176,13 +1255,13 @@ function InsuranceRecordsContent() {
                   fetchRecords(currentPage);
                   fetchSummaryCounts();
                 }}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer hover:bg-slate-100"
                 title="Refresh records"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               </button>
             </div>
-          </div> */}
+          </div>
 
           {/* Mobile Filter & Search Section (Flipkart / Amazon Style) */}
           <div className="lg:hidden space-y-2.5">
@@ -1391,6 +1470,64 @@ function InsuranceRecordsContent() {
             )}
           </div>
 
+          {/* Quick Policy Status Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+            {[
+              { label: "All Policies", value: "All Statuses" },
+              { label: "Active", value: "Active", count: activePoliciesCount },
+              {
+                label: "Expiring Soon (10 Days)",
+                value: "Expiring Soon",
+                count: expiringSoonCount,
+                isExpiring: true,
+              },
+              { label: "Expired", value: "Expired" },
+            ].map((tab) => {
+              const isSelected = selectedStatus === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedStatus(tab.value);
+                    setCurrentPage(1);
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? tab.isExpiring
+                        ? "bg-amber-500 text-white shadow-xs"
+                        : "bg-blue-600 text-white shadow-xs"
+                      : tab.isExpiring && (tab.count ?? 0) > 0
+                      ? "bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100"
+                      : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {tab.isExpiring && (
+                    <Clock
+                      className={`w-3.5 h-3.5 ${
+                        isSelected ? "text-white" : "text-amber-600"
+                      }`}
+                    />
+                  )}
+                  <span>{tab.label}</span>
+                  {typeof tab.count === "number" && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        isSelected
+                          ? "bg-white/25 text-white"
+                          : tab.isExpiring
+                          ? "bg-amber-200 text-amber-900"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Desktop Filter Bar (Direct Inputs - Visible only on Desktop lg+) */}
           <div className="hidden lg:block bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-4 shadow-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
@@ -1461,10 +1598,10 @@ function InsuranceRecordsContent() {
                 </div>
               </div>
 
-              {/* PAYMENT STATUS */}
+              {/* POLICY STATUS */}
               <div className="lg:col-span-2">
                 <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  PAYMENT STATUS
+                  POLICY STATUS
                 </label>
                 <div className="relative">
                   <select
@@ -1477,7 +1614,7 @@ function InsuranceRecordsContent() {
                   >
                     <option value="All Statuses">All Statuses</option>
                     <option value="Active">Active</option>
-                    <option value="Expiring Soon">Expiring Soon</option>
+                    <option value="Expiring Soon">Expiring Soon (10 Days)</option>
                     <option value="Expired">Expired</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
@@ -1691,7 +1828,7 @@ function InsuranceRecordsContent() {
 
                           {/* Status */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            {renderStatusBadge(record.status)}
+                            {renderStatusBadge(record.status, record.days_left)}
                           </td>
 
                           {/* Actions: Edit, Trash, Add Payment */}

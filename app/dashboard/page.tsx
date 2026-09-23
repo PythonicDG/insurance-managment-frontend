@@ -17,7 +17,7 @@ import { DashboardKpiCards } from "@/components/dashboard/dashboard-kpi-card";
 import { BusinessSummaryChart } from "@/components/dashboard/business-summary-chart";
 import { PaymentStatusChart } from "@/components/dashboard/payment-status-chart";
 import { CompanyPremiumChart } from "@/components/dashboard/company-premium-chart";
-import { RecentRecordsTable } from "@/components/dashboard/recent-records-table";
+import { ExpiringTodayTable } from "@/components/dashboard/expiring-today-table";
 import { InsuranceRecordFormModal } from "@/components/insurance/insurance-record-form-modal";
 import {
   DashboardDateFilter,
@@ -344,9 +344,9 @@ export default function DashboardPage() {
           loading={loading}
         />
 
-        {/* Row 4: Recent Insurance Records Table with + Add New Record */}
-        <RecentRecordsTable
-          records={data.recent_records}
+        {/* Row 4: Expiring Today Records Table */}
+        <ExpiringTodayTable
+          records={data.expiring_today_records || data.recent_records || []}
           loading={loading}
         />
       </div>

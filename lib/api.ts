@@ -675,6 +675,8 @@ export interface DashboardKpiMetrics {
   total_policies: number;
   total_premium: number;
   total_received: number;
+  expiring_today_count?: number;
+  expiring_soon_count?: number;
   filter_start_date?: string | null;
   filter_end_date?: string | null;
   is_all_time?: boolean;
@@ -712,11 +714,14 @@ export interface CompanyWiseSummaryItem {
   collection_rate: number;
 }
 
-export interface DashboardRecentRecord {
+export interface DashboardExpiringTodayRecord {
   id: number;
   policy_number: string;
   entry_date: string;
   formatted_date: string;
+  policy_expiry_date?: string;
+  formatted_expiry_date?: string;
+  days_left?: number;
   customer_name: string;
   customer_phone?: string;
   vehicle_number: string;
@@ -726,14 +731,18 @@ export interface DashboardRecentRecord {
   paid_amount: number;
   outstanding: number;
   status: "Paid" | "Partial" | "Outstanding" | string;
+  policy_status?: string;
 }
+
+export type DashboardRecentRecord = DashboardExpiringTodayRecord;
 
 export interface DashboardData {
   kpis: DashboardKpiMetrics;
   business_summary: BusinessSummaryItem[];
   payment_status_summary: PaymentStatusSummary;
   company_wise_summary: CompanyWiseSummaryItem[];
-  recent_records: DashboardRecentRecord[];
+  expiring_today_records?: DashboardExpiringTodayRecord[];
+  recent_records: DashboardExpiringTodayRecord[];
 }
 
 export interface BusinessSummaryResponse {
