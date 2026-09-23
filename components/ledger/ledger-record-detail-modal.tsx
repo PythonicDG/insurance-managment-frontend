@@ -157,6 +157,11 @@ export function LedgerRecordDetailModal({
               </div>
               <p className="text-sm font-bold text-slate-900">{record.customer_name}</p>
               <p className="text-xs text-slate-600 mt-0.5">{record.customer_phone}</p>
+              {(record.alternative_mobile_number || record.customer_alternative_mobile_number) && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Alt: {record.alternative_mobile_number || record.customer_alternative_mobile_number}
+                </p>
+              )}
               {record.customer_email && (
                 <p className="text-xs text-slate-400 mt-0.5 truncate">{record.customer_email}</p>
               )}

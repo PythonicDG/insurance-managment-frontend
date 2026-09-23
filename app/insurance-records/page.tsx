@@ -39,6 +39,10 @@ import {
   FilterCategory,
 } from "@/components/insurance/mobile-filters-modal";
 import { formatLocalDateISO } from "@/lib/date-utils";
+import {
+  printHtmlDocument,
+  sanitizeFileName,
+} from "@/lib/print-transaction-receipt";
 
 // Attach payments and calculate real paid/balance for a record
 function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordItem {
@@ -648,6 +652,7 @@ function InsuranceRecordsContent() {
       "Insurance Start Date",
       "Customer Name",
       "Phone",
+      "Alternative Phone",
       "Vehicle Number",
       "Insurance Company",
       "Total Premium",
@@ -668,11 +673,14 @@ function InsuranceRecordsContent() {
       // and do not auto-convert it to a date serial that displays as ###### due to cell width
       const startDateCell = formattedDate ? `="${formattedDate}"` : '""';
       const phoneCell = r.customer?.phone ? `="${r.customer.phone}"` : '""';
+      const altPhone = r.alternative_mobile_number || r.customer?.alternative_mobile_number;
+      const altPhoneCell = altPhone ? `="${altPhone}"` : '""';
 
       return [
         startDateCell,
         escapeCsv(r.customer?.name),
         phoneCell,
+        altPhoneCell,
         escapeCsv(r.vehicle?.vehicle_number),
         escapeCsv(r.insurance_company?.name),
         typeof r.total_premium === "number"
@@ -764,6 +772,7 @@ function InsuranceRecordsContent() {
         const customerName = r.customer?.name?.trim() || "—";
         const address = r.customer?.address?.trim() || "—";
         const phone = r.customer?.phone?.trim() || "—";
+        const altPhone = (r.alternative_mobile_number || r.customer?.alternative_mobile_number)?.trim() || "";
         const vehicleNum = r.vehicle?.vehicle_number?.trim() || "—";
         const companyName = r.insurance_company?.name?.trim() || "—";
         const prem =
@@ -777,7 +786,10 @@ function InsuranceRecordsContent() {
             <td class="col-date">${displayDate}</td>
             <td class="col-name">${customerName}</td>
             <td class="col-addr">${address}</td>
-            <td class="col-phone">${phone}</td>
+            <td class="col-phone">
+              <div>${phone}</div>
+              ${altPhone ? `<div style="font-size: 9.5px; color: #64748b;">Alt: ${altPhone}</div>` : ""}
+            </td>
             <td class="col-veh">${vehicleNum}</td>
             <td class="col-comp">${companyName}</td>
             <td class="col-prem">${formatCurrency(prem)}</td>
@@ -1030,31 +1042,21 @@ function InsuranceRecordsContent() {
       </html>
     `;
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
-
-      setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        }, 1000);
-      }, 250);
+    const dateStr = formatLocalDateISO(new Date());
+    const parts = ["Insurance_Records_Report"];
+    if (filters.company && filters.company !== "All Companies") {
+      parts.push(sanitizeFileName(filters.company));
     }
+    if (filters.status && filters.status !== "All Statuses") {
+      parts.push(sanitizeFileName(filters.status));
+    }
+    if (filters.search) {
+      parts.push(sanitizeFileName(filters.search));
+    }
+    parts.push(dateStr);
+    const pdfFileName = parts.join("_");
+
+    printHtmlDocument(htmlContent, pdfFileName);
   };
 
   // Save as PDF / Print All Handler
@@ -1806,7 +1808,12 @@ function InsuranceRecordsContent() {
 
                           {/* Phone */}
                           <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap font-medium">
-                            {record.customer?.phone || "—"}
+                            <div>{record.customer?.phone || "—"}</div>
+                            {(record.alternative_mobile_number || record.customer?.alternative_mobile_number) && (
+                              <div className="text-[10px] text-slate-400 font-normal">
+                                Alt: {record.alternative_mobile_number || record.customer?.alternative_mobile_number}
+                              </div>
+                            )}
                           </td>
 
                           {/* Vehicle Number (Pill badge) */}

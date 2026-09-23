@@ -2,6 +2,7 @@ import {
   InsuranceRecordItem,
   PaymentTransaction,
   BusinessSettings,
+  CustomerDetailResponse,
 } from "@/lib/api";
 import { formatDisplayDate } from "@/lib/date-utils";
 
@@ -89,7 +90,7 @@ export function numberToWordsIndian(amount: number): string {
 /**
  * Safe currency formatter for reports
  */
-function formatCurrency(val: number | string | undefined | null): string {
+export function formatCurrency(val: number | string | undefined | null): string {
   if (val === undefined || val === null) return "₹0.00";
   const num = typeof val === "number" ? val : parseFloat(String(val)) || 0;
   return `₹${num.toLocaleString("en-IN", {
@@ -99,9 +100,44 @@ function formatCurrency(val: number | string | undefined | null): string {
 }
 
 /**
- * Dispatch an HTML document to an invisible iframe for native browser printing
+ * Sanitize a string for use as a valid, readable filesystem/PDF filename
+ * Replaces illegal OS characters (/\:*?"<>|), spaces, and collapses underscores.
  */
-function printHtmlContent(htmlContent: string, title: string = "Print") {
+export function sanitizeFileName(name?: string | number | null): string {
+  if (name === undefined || name === null) return "";
+  return String(name)
+    .trim()
+    .replace(/[/\\:*?"<>|]/g, "_") // Replace filesystem reserved characters
+    .replace(/\s+/g, "_")          // Replace whitespace with underscore
+    .replace(/_+/g, "_")           // Collapse consecutive underscores
+    .replace(/^_+|_+$/g, "");      // Strip leading and trailing underscores
+}
+
+/**
+ * Dispatch an HTML document to an invisible iframe for native browser printing & Save as PDF.
+ * Temporarily updates the parent window's document.title so Chromium (Chrome/Edge)
+ * automatically assigns the appropriate filename in the native "Save as PDF" file dialog.
+ */
+export function printHtmlDocument(htmlContent: string, fileName: string) {
+  if (typeof window === "undefined") return;
+
+  const cleanTitle = sanitizeFileName(fileName) || "Document";
+  const originalTitle = document.title;
+  let restored = false;
+
+  const restoreTitle = () => {
+    if (!restored) {
+      restored = true;
+      document.title = originalTitle;
+      window.removeEventListener("afterprint", restoreTitle);
+    }
+  };
+
+  // 1. Set parent window document.title for Chromium Save-As-PDF filename deduction
+  document.title = cleanTitle;
+  window.addEventListener("afterprint", restoreTitle, { once: true });
+
+  // 2. Create invisible iframe
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -109,25 +145,56 @@ function printHtmlContent(htmlContent: string, title: string = "Print") {
   iframe.style.width = "0";
   iframe.style.height = "0";
   iframe.style.border = "0";
-  iframe.title = title;
+  iframe.title = cleanTitle;
   document.body.appendChild(iframe);
 
   const doc = iframe.contentWindow?.document;
   if (doc) {
     doc.open();
-    doc.write(htmlContent);
+    // Ensure <title> in htmlContent matches cleanTitle
+    let processedHtml = htmlContent;
+    if (processedHtml.includes("<title>")) {
+      processedHtml = processedHtml.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(cleanTitle)}</title>`);
+    } else {
+      processedHtml = processedHtml.replace(/<head>/i, `<head><title>${escapeHtml(cleanTitle)}</title>`);
+    }
+    doc.write(processedHtml);
     doc.close();
+    doc.title = cleanTitle;
+
+    try {
+      iframe.contentWindow?.addEventListener("afterprint", restoreTitle, { once: true });
+    } catch {}
 
     setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error("Print invocation failed:", err);
+      }
+
+      // Cleanup iframe and restore title fallback after dialog opens/closes
       setTimeout(() => {
+        restoreTitle();
         if (document.body.contains(iframe)) {
           document.body.removeChild(iframe);
         }
-      }, 1500);
+      }, 3000);
     }, 300);
+  } else {
+    restoreTitle();
+    if (document.body.contains(iframe)) {
+      document.body.removeChild(iframe);
+    }
   }
+}
+
+/**
+ * Backward compatibility alias for printHtmlDocument
+ */
+export function printHtmlContent(htmlContent: string, title: string = "Print") {
+  printHtmlDocument(htmlContent, title);
 }
 
 export interface PrintTransactionStatementOptions {
@@ -196,6 +263,7 @@ export function printTransactionStatement({
 
   const customerName = record.customer?.name || "Valued Customer";
   const customerPhone = record.customer?.phone || "—";
+  const customerAltPhone = record.alternative_mobile_number || record.customer?.alternative_mobile_number || "";
   const customerAddress = record.customer?.address || "—";
 
   const vehicleNum = record.vehicle?.vehicle_number || "—";
@@ -667,6 +735,11 @@ export function printTransactionStatement({
             <span class="info-label">Phone Number:</span>
             <span class="info-value">${escapeHtml(customerPhone)}</span>
           </div>
+          ${customerAltPhone ? `
+          <div class="info-row">
+            <span class="info-label">Alt Mobile:</span>
+            <span class="info-value">${escapeHtml(customerAltPhone)}</span>
+          </div>` : ""}
           <div class="info-row">
             <span class="info-label">Address:</span>
             <span class="info-value">${escapeHtml(customerAddress)}</span>
@@ -802,7 +875,18 @@ export function printTransactionStatement({
 </body>
 </html>`;
 
-  printHtmlContent(html, `Payment Statement - ${policyNum}`);
+  const custClean = sanitizeFileName(customerName !== "Valued Customer" ? customerName : "");
+  const vehClean = sanitizeFileName(vehicleNum !== "—" ? vehicleNum : "");
+  const polClean = sanitizeFileName(policyNum !== "—" ? policyNum : "");
+
+  const parts = ["Transactions_History"];
+  if (custClean) parts.push(custClean);
+  if (vehClean) parts.push(vehClean);
+  if (polClean) parts.push(polClean);
+  if (parts.length === 1 && record.id) parts.push(String(record.id));
+  const fileName = parts.join("_");
+
+  printHtmlDocument(html, fileName);
 }
 
 /**
@@ -834,6 +918,7 @@ export function printSinglePaymentReceipt({
 
   const customerName = record.customer?.name || "Valued Customer";
   const customerPhone = record.customer?.phone || "—";
+  const customerAltPhone = record.alternative_mobile_number || record.customer?.alternative_mobile_number || "";
   const vehicleNum = record.vehicle?.vehicle_number || "—";
   const companyName = record.insurance_company?.name || "—";
   const policyNum = record.policy_number || "—";
@@ -1026,7 +1111,7 @@ export function printSinglePaymentReceipt({
       </div>
       <div class="row">
         <div class="label">Customer Contact:</div>
-        <div class="value">${escapeHtml(customerPhone)}</div>
+        <div class="value">${escapeHtml(customerPhone)}${customerAltPhone ? ` &nbsp;|&nbsp; Alt: ${escapeHtml(customerAltPhone)}` : ""}</div>
       </div>
       <div class="row">
         <div class="label">Vehicle Number:</div>
@@ -1071,7 +1156,15 @@ export function printSinglePaymentReceipt({
 </body>
 </html>`;
 
-  printHtmlContent(html, `Payment Voucher - ${receiptRef}`);
+  const cleanReceiptRef = sanitizeFileName(receiptRef);
+  const cleanCust = sanitizeFileName(customerName !== "Valued Customer" ? customerName : "");
+  const cleanVeh = sanitizeFileName(vehicleNum !== "—" ? vehicleNum : "");
+  const parts = ["Payment_Receipt", cleanReceiptRef];
+  if (cleanCust) parts.push(cleanCust);
+  if (cleanVeh) parts.push(cleanVeh);
+  const fileName = parts.join("_");
+
+  printHtmlDocument(html, fileName);
 }
 
 /**
@@ -1274,7 +1367,620 @@ export function printVehicleHistorySummary({
 </body>
 </html>`;
 
-  printHtmlContent(html, `Vehicle History - ${vehicleNumber}`);
+  const cleanVeh = sanitizeFileName(vehicleNumber);
+  const cleanCust = sanitizeFileName(customerName);
+  const parts = ["Vehicle_Insurance_History"];
+  if (cleanVeh) parts.push(cleanVeh);
+  if (cleanCust) parts.push(cleanCust);
+  const fileName = parts.join("_");
+
+  printHtmlDocument(html, fileName);
+}
+
+export interface PrintCustomerInsuranceHistoryOptions {
+  customer: CustomerDetailResponse | {
+    id?: number | string;
+    name?: string;
+    phone?: string;
+    alternative_mobile_number?: string;
+    email?: string;
+    address?: string;
+    total_records?: number;
+    total_premium?: number | string;
+    total_paid?: number | string;
+    total_outstanding?: number | string;
+  };
+  records: InsuranceRecordItem[];
+  settings?: BusinessSettings | null;
+}
+
+/**
+ * Print an entire Customer Insurance History report across all policies
+ */
+export function printCustomerInsuranceHistory({
+  customer,
+  records,
+  settings,
+}: PrintCustomerInsuranceHistoryOptions) {
+  const printDate = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const agencyName = settings?.business_name || "INSURANCE MANAGEMENT SERVICES";
+  const agencyPhone = settings?.phone || "";
+  const agencyEmail = settings?.email || "";
+  const agencyAddress = settings?.address || "";
+  const agencyLogo = settings?.logo_url || settings?.logo || "";
+
+  const customerName = customer.name || "Valued Customer";
+  const customerPhone = customer.phone || "—";
+  const customerAltPhone = customer.alternative_mobile_number || "";
+  const customerEmail = customer.email || "";
+  const customerAddress = customer.address || "—";
+
+  const totalPolicies = records.length;
+  const totalPremium = records.reduce((sum, r) => {
+    const val = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+    return sum + val;
+  }, 0);
+
+  const totalPaid = records.reduce((sum, r) => {
+    const val = typeof r.total_paid !== "undefined" && r.total_paid !== null
+      ? parseFloat(String(r.total_paid)) || 0
+      : typeof r.paid_amount === "number"
+      ? r.paid_amount
+      : parseFloat(String(r.paid_amount || 0)) || 0;
+    return sum + val;
+  }, 0);
+
+  const totalOutstanding = Math.max(0, totalPremium - totalPaid);
+
+  const cleanCust = sanitizeFileName(customer.name);
+  const cleanPhone = sanitizeFileName(customer.phone);
+  const dateIso = new Date().toISOString().split("T")[0];
+  const parts = ["Customer_Insurance_History"];
+  if (cleanCust) parts.push(cleanCust);
+  if (cleanPhone) parts.push(cleanPhone);
+  parts.push(dateIso);
+  const fileName = parts.join("_");
+
+  const rows = records.length === 0
+    ? `<tr><td colspan="8" style="text-align: center; padding: 24px; color: #64748b; font-style: italic;">No insurance policies recorded for this customer.</td></tr>`
+    : records.map((r, i) => {
+        const pNum = r.policy_number || "—";
+        const comp = r.insurance_company?.name || "—";
+        const veh = r.vehicle?.vehicle_number || "—";
+        const vehType = r.vehicle?.vehicle_type || r.vehicle_class || "";
+        const start = formatDisplayDate(r.policy_start_date);
+        const exp = formatDisplayDate(r.policy_expiry_date);
+        const prem = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+        const paid = typeof r.total_paid !== "undefined" && r.total_paid !== null
+          ? parseFloat(String(r.total_paid)) || 0
+          : typeof r.paid_amount === "number"
+          ? r.paid_amount
+          : parseFloat(String(r.paid_amount || 0)) || 0;
+        const bal = typeof r.outstanding !== "undefined" && r.outstanding !== null
+          ? parseFloat(String(r.outstanding)) || 0
+          : typeof r.balance === "number"
+          ? r.balance
+          : Math.max(0, prem - paid);
+
+        const statusLabel = r.is_active ? "Active" : "Expired";
+        const statusStyle = r.is_active
+          ? "background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;"
+          : "background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;";
+
+        return `
+        <tr>
+          <td style="text-align: center; color: #64748b;">${i + 1}</td>
+          <td style="font-weight: 700; color: #0f172a;">
+            ${escapeHtml(pNum)}
+            <div style="font-size: 9px; font-weight: normal; color: #64748b;">${escapeHtml(comp)}</div>
+          </td>
+          <td>
+            <span style="font-family: monospace; font-weight: 700; background: #0f172a; color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 10px;">${escapeHtml(veh)}</span>
+            ${vehType ? `<div style="font-size: 9.5px; color: #64748b; margin-top: 2px;">${escapeHtml(vehType)}</div>` : ""}
+          </td>
+          <td style="font-size: 10px;">${start} &ndash; ${exp}</td>
+          <td style="text-align: right; font-weight: 700;">${formatCurrency(prem)}</td>
+          <td style="text-align: right; color: #059669; font-weight: 600;">${formatCurrency(paid)}</td>
+          <td style="text-align: right; color: ${bal > 0 ? "#dc2626" : "#059669"}; font-weight: 700;">${formatCurrency(bal)}</td>
+          <td style="text-align: center;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; ${statusStyle}">${statusLabel}</span>
+          </td>
+        </tr>`;
+      }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(fileName)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm 14mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 11px;
+      color: #0f172a;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2.5px solid #1e40af;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .header-table td { vertical-align: top; }
+    .agency-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1e3a8a;
+      text-transform: uppercase;
+      margin: 0 0 2px 0;
+      letter-spacing: -0.3px;
+    }
+    .agency-info { font-size: 10px; color: #475569; margin: 0; line-height: 1.35; }
+    .doc-meta { text-align: right; }
+    .doc-title {
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0f172a;
+      letter-spacing: 0.5px;
+      margin: 0 0 3px 0;
+    }
+    .meta-text { font-size: 10px; color: #64748b; margin: 1px 0; }
+    .meta-text strong { color: #0f172a; }
+
+    /* Customer Info & Financial Summary */
+    .summary-grid {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 10px 0;
+      margin-bottom: 12px;
+    }
+    .customer-card {
+      width: 45%;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 9px 12px;
+      vertical-align: top;
+    }
+    .card-title {
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #2563eb;
+      border-bottom: 1px dashed #cbd5e1;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
+    }
+    .info-line { margin-bottom: 3px; font-size: 10.5px; }
+    .info-line strong { color: #0f172a; }
+    .info-line span { color: #64748b; }
+
+    .metrics-col {
+      width: 55%;
+      vertical-align: top;
+    }
+    .metrics-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 6px 0;
+    }
+    .metric-cell {
+      padding: 8px 10px;
+      border-radius: 8px;
+      vertical-align: middle;
+      text-align: center;
+    }
+    .metric-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .metric-val {
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    /* Ledger Table */
+    .ledger-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .ledger-table th {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 6px 8px;
+      border-bottom: 1.5px solid #cbd5e1;
+      text-align: left;
+    }
+    .ledger-table td {
+      padding: 6px 8px;
+      font-size: 10.5px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+    .ledger-table tr:last-child td { border-bottom: none; }
+    .ledger-table tfoot td {
+      background: #f8fafc;
+      font-weight: 800;
+      border-top: 1.5px solid #cbd5e1;
+      padding: 7px 8px;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 8.5px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <table class="header-table">
+    <tr>
+      <td style="width: 60%;">
+        ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:42px; margin-bottom:4px;" /><br />` : ""}
+        <h1 class="agency-name">${escapeHtml(agencyName)}</h1>
+        <p class="agency-info">
+          ${agencyAddress ? `${escapeHtml(agencyAddress)}<br />` : ""}
+          ${agencyPhone ? `<strong>Phone:</strong> ${escapeHtml(agencyPhone)} &nbsp;&bull;&nbsp; ` : ""}
+          ${agencyEmail ? `<strong>Email:</strong> ${escapeHtml(agencyEmail)}` : ""}
+        </p>
+      </td>
+      <td style="width: 40%;" class="doc-meta">
+        <div class="doc-title">Customer Insurance History</div>
+        <div class="meta-text">Report Generated: <strong>${printDate}</strong></div>
+        <div class="meta-text">Total Policies Registered: <strong>${totalPolicies}</strong></div>
+      </td>
+    </tr>
+  </table>
+
+  <table class="summary-grid">
+    <tr>
+      <td class="customer-card">
+        <div class="card-title">Customer Profile</div>
+        <div class="info-line"><span>Name:</span> <strong>${escapeHtml(customerName)}</strong></div>
+        <div class="info-line"><span>Phone:</span> <strong>${escapeHtml(customerPhone)}</strong> ${customerAltPhone ? `&nbsp;|&nbsp; <span>Alt:</span> ${escapeHtml(customerAltPhone)}` : ""}</div>
+        ${customerEmail ? `<div class="info-line"><span>Email:</span> ${escapeHtml(customerEmail)}</div>` : ""}
+        <div class="info-line"><span>Address:</span> ${escapeHtml(customerAddress)}</div>
+      </td>
+      <td class="metrics-col">
+        <table class="metrics-table">
+          <tr>
+            <td class="metric-cell" style="background: #f1f5f9; border: 1px solid #cbd5e1;">
+              <div class="metric-label" style="color: #475569;">Total Policies</div>
+              <div class="metric-val" style="color: #0f172a;">${totalPolicies}</div>
+            </td>
+            <td class="metric-cell" style="background: #eff6ff; border: 1px solid #bfdbfe;">
+              <div class="metric-label" style="color: #1e40af;">Total Premium</div>
+              <div class="metric-val" style="color: #1d4ed8;">${formatCurrency(totalPremium)}</div>
+            </td>
+            <td class="metric-cell" style="background: #ecfdf5; border: 1px solid #a7f3d0;">
+              <div class="metric-label" style="color: #047857;">Total Received</div>
+              <div class="metric-val" style="color: #059669;">${formatCurrency(totalPaid)}</div>
+            </td>
+            <td class="metric-cell" style="background: ${totalOutstanding > 0 ? "#fef2f2" : "#f0fdf4"}; border: 1px solid ${totalOutstanding > 0 ? "#fecaca" : "#bbf7d0"};">
+              <div class="metric-label" style="color: ${totalOutstanding > 0 ? "#b91c1c" : "#15803d"};">Outstanding</div>
+              <div class="metric-val" style="color: ${totalOutstanding > 0 ? "#dc2626" : "#16a34a"};">${formatCurrency(totalOutstanding)}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table class="ledger-table">
+    <thead>
+      <tr>
+        <th style="width: 4%; text-align: center;">#</th>
+        <th style="width: 22%;">Policy &amp; Company</th>
+        <th style="width: 17%;">Vehicle</th>
+        <th style="width: 18%;">Insurance Period</th>
+        <th style="width: 13%; text-align: right;">Total Premium</th>
+        <th style="width: 11%; text-align: right;">Paid</th>
+        <th style="width: 11%; text-align: right;">Balance</th>
+        <th style="width: 7%; text-align: center;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align: right;">Cumulative Portfolio Totals:</td>
+        <td style="text-align: right; color: #0f172a;">${formatCurrency(totalPremium)}</td>
+        <td style="text-align: right; color: #059669;">${formatCurrency(totalPaid)}</td>
+        <td style="text-align: right; color: ${totalOutstanding > 0 ? "#dc2626" : "#059669"};">${formatCurrency(totalOutstanding)}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer-note">
+    Official Customer Insurance Portfolio &amp; History Statement &bull; Generated from ${escapeHtml(agencyName)}
+  </div>
+</body>
+</html>`;
+
+  printHtmlDocument(html, fileName);
+}
+
+export interface PrintSingleInsuranceRecordOptions {
+  record: InsuranceRecordItem;
+  settings?: BusinessSettings | null;
+}
+
+/**
+ * Print an official summary record voucher for an individual insurance policy
+ */
+export function printSingleInsuranceRecord({
+  record,
+  settings,
+}: PrintSingleInsuranceRecordOptions) {
+  const printDate = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const agencyName = settings?.business_name || "INSURANCE MANAGEMENT SERVICES";
+  const agencyPhone = settings?.phone || "";
+  const agencyEmail = settings?.email || "";
+  const agencyAddress = settings?.address || "";
+  const agencyLogo = settings?.logo_url || settings?.logo || "";
+
+  const customerName = record.customer?.name || "Valued Customer";
+  const customerPhone = record.customer?.phone || "—";
+  const customerAltPhone = record.alternative_mobile_number || record.customer?.alternative_mobile_number || "";
+  const customerAddress = record.customer?.address || "—";
+
+  const vehicleNum = record.vehicle?.vehicle_number || "—";
+  const vehicleType = record.vehicle?.vehicle_type || record.vehicle_class || "—";
+  const companyName = record.insurance_company?.name || "—";
+  const policyNum = record.policy_number || "—";
+
+  const policyStart = formatDisplayDate(record.policy_start_date);
+  const policyExpiry = formatDisplayDate(record.policy_expiry_date);
+  const recordDate = formatDisplayDate(record.entry_date || record.created_at);
+
+  const totalPremium = typeof record.total_premium === "number" ? record.total_premium : parseFloat(String(record.total_premium || 0)) || 0;
+  const totalPaid = typeof record.total_paid !== "undefined" && record.total_paid !== null
+    ? parseFloat(String(record.total_paid)) || 0
+    : typeof record.paid_amount === "number"
+    ? record.paid_amount
+    : parseFloat(String(record.paid_amount || 0)) || 0;
+  const balance = typeof record.outstanding !== "undefined" && record.outstanding !== null
+    ? parseFloat(String(record.outstanding)) || 0
+    : typeof record.balance === "number"
+    ? record.balance
+    : Math.max(0, totalPremium - totalPaid);
+
+  const cleanPol = sanitizeFileName(policyNum !== "—" ? policyNum : "");
+  const cleanVeh = sanitizeFileName(vehicleNum !== "—" ? vehicleNum : "");
+  const cleanCust = sanitizeFileName(customerName !== "Valued Customer" ? customerName : "");
+
+  const parts = ["Insurance_Record"];
+  if (cleanPol) parts.push(cleanPol);
+  if (cleanVeh) parts.push(cleanVeh);
+  if (cleanCust) parts.push(cleanCust);
+  const fileName = parts.join("_");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(fileName)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm 16mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 11.5px;
+      color: #0f172a;
+      line-height: 1.5;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2.5px solid #1e40af;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+    .header-table td { vertical-align: top; }
+    .agency-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1e3a8a;
+      text-transform: uppercase;
+      margin: 0 0 3px 0;
+    }
+    .agency-info { font-size: 10px; color: #475569; margin: 0; }
+    .doc-meta { text-align: right; }
+    .doc-title {
+      font-size: 16px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #0f172a;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px 0;
+    }
+    .meta-text { font-size: 10px; color: #64748b; margin: 2px 0; }
+
+    .section-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #1e40af;
+      border-bottom: 1px dashed #cbd5e1;
+      padding-bottom: 4px;
+      margin-bottom: 10px;
+    }
+    .data-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px 16px;
+    }
+    .data-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+    .data-label { color: #64748b; font-weight: 500; }
+    .data-value { font-weight: 700; color: #0f172a; }
+
+    .financials-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 8px 0;
+      margin-bottom: 16px;
+    }
+    .financials-table td {
+      width: 33.333%;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .badge-plate {
+      background: #0f172a;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .footer-note {
+      text-align: center;
+      font-size: 9px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 10px;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <table class="header-table">
+    <tr>
+      <td style="width: 60%;">
+        ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:44px; margin-bottom:4px;" /><br />` : ""}
+        <h1 class="agency-name">${escapeHtml(agencyName)}</h1>
+        <p class="agency-info">
+          ${agencyAddress ? `${escapeHtml(agencyAddress)}<br />` : ""}
+          ${agencyPhone ? `<strong>Phone:</strong> ${escapeHtml(agencyPhone)} &nbsp;&bull;&nbsp; ` : ""}
+          ${agencyEmail ? `<strong>Email:</strong> ${escapeHtml(agencyEmail)}` : ""}
+        </p>
+      </td>
+      <td style="width: 40%;" class="doc-meta">
+        <div class="doc-title">Insurance Policy Record</div>
+        <div class="meta-text">Policy Ref: <strong>${escapeHtml(policyNum)}</strong></div>
+        <div class="meta-text">Print Date: <strong>${printDate}</strong></div>
+        <div class="meta-text">Record Date: <strong>${recordDate}</strong></div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="section-box">
+    <div class="section-title">Customer &amp; Policyholder</div>
+    <div class="data-grid">
+      <div class="data-item"><span class="data-label">Customer Name:</span><span class="data-value">${escapeHtml(customerName)}</span></div>
+      <div class="data-item"><span class="data-label">Mobile Number:</span><span class="data-value">${escapeHtml(customerPhone)}</span></div>
+      ${customerAltPhone ? `<div class="data-item"><span class="data-label">Alt Mobile:</span><span class="data-value">${escapeHtml(customerAltPhone)}</span></div>` : ""}
+      <div class="data-item"><span class="data-label">Address:</span><span class="data-value">${escapeHtml(customerAddress)}</span></div>
+    </div>
+  </div>
+
+  <div class="section-box">
+    <div class="section-title">Policy &amp; Coverage Information</div>
+    <div class="data-grid">
+      <div class="data-item"><span class="data-label">Policy Number:</span><span class="data-value font-mono">${escapeHtml(policyNum)}</span></div>
+      <div class="data-item"><span class="data-label">Insurance Company:</span><span class="data-value">${escapeHtml(companyName)}</span></div>
+      <div class="data-item"><span class="data-label">Policy Period:</span><span class="data-value">${policyStart} to ${policyExpiry}</span></div>
+      <div class="data-item"><span class="data-label">Policy Status:</span><span class="data-value" style="color: ${record.is_active ? "#059669" : "#64748b"};">${record.is_active ? "Active" : "Expired / Inactive"}</span></div>
+    </div>
+  </div>
+
+  <div class="section-box">
+    <div class="section-title">Vehicle Details</div>
+    <div class="data-grid">
+      <div class="data-item"><span class="data-label">Vehicle Registration:</span><span class="badge-plate">${escapeHtml(vehicleNum)}</span></div>
+      <div class="data-item"><span class="data-label">Vehicle Type:</span><span class="data-value">${escapeHtml(vehicleType)}</span></div>
+      <div class="data-item"><span class="data-label">Vehicle Class:</span><span class="data-value">${escapeHtml(record.vehicle_class || "—")}</span></div>
+    </div>
+  </div>
+
+  <table class="financials-table">
+    <tr>
+      <td style="background: #f1f5f9; border: 1px solid #cbd5e1;">
+        <div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #475569; margin-bottom: 2px;">Total Premium</div>
+        <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${formatCurrency(totalPremium)}</div>
+      </td>
+      <td style="background: #ecfdf5; border: 1px solid #a7f3d0;">
+        <div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #047857; margin-bottom: 2px;">Amount Paid</div>
+        <div style="font-size: 18px; font-weight: 800; color: #059669;">${formatCurrency(totalPaid)}</div>
+      </td>
+      <td style="background: ${balance > 0 ? "#fef2f2" : "#f0fdf4"}; border: 1px solid ${balance > 0 ? "#fecaca" : "#bbf7d0"};">
+        <div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: ${balance > 0 ? "#b91c1c" : "#15803d"}; margin-bottom: 2px;">Outstanding Balance</div>
+        <div style="font-size: 18px; font-weight: 800; color: ${balance > 0 ? "#dc2626" : "#16a34a"};">${formatCurrency(balance)}</div>
+      </td>
+    </tr>
+  </table>
+
+  ${record.remarks ? `
+  <div class="section-box">
+    <div class="section-title">Underwriting Remarks</div>
+    <div style="font-size: 11px; color: #334155;">${escapeHtml(record.remarks)}</div>
+  </div>` : ""}
+
+  <div class="footer-note">
+    This document is a computer-generated summary of Insurance Record #${record.id || ""}. Issued by ${escapeHtml(agencyName)}.
+  </div>
+</body>
+</html>`;
+
+  printHtmlDocument(html, fileName);
 }
 
 function escapeHtml(text?: string | number | null): string {

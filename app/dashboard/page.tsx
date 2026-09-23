@@ -164,6 +164,8 @@ export default function DashboardPage() {
     create_new_customer?: boolean;
     customer_name: string;
     customer_phone: string;
+    customer_alternative_mobile_number?: string;
+    alternative_mobile_number?: string;
     customer_email?: string;
     customer_address?: string;
     vehicle_number: string;

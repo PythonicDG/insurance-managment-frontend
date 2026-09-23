@@ -23,6 +23,8 @@ interface CustomerLookupSectionProps {
   setCustomerName: (val: string) => void;
   customerPhone: string;
   setCustomerPhone: (val: string) => void;
+  customerAltPhone?: string;
+  setCustomerAltPhone?: (val: string) => void;
   customerAddress: string;
   setCustomerAddress: (val: string) => void;
   customerEmail?: string;
@@ -39,6 +41,8 @@ export function CustomerLookupSection({
   setCustomerName,
   customerPhone,
   setCustomerPhone,
+  customerAltPhone,
+  setCustomerAltPhone,
   customerAddress,
   setCustomerAddress,
   customerEmail,
@@ -114,6 +118,7 @@ export function CustomerLookupSection({
     if (customer.name) setCustomerName(customer.name);
     if (customer.address) setCustomerAddress(customer.address);
     if (customer.email && setCustomerEmail) setCustomerEmail(customer.email);
+    if (setCustomerAltPhone) setCustomerAltPhone(customer.alternative_mobile_number || "");
   };
 
   // Handle opting to create a new customer sharing the same number
@@ -247,6 +252,33 @@ export function CustomerLookupSection({
           </div>
         </div>
 
+        {/* Alternative Mobile Number Input (Optional) */}
+        {setCustomerAltPhone !== undefined && (
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+              <span>Alternative Mobile Number (Optional)</span>
+              {isSelectedCustomerActive && (
+                <span className="text-[10px] text-emerald-600 font-normal">
+                  (Edits will update this customer)
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Phone className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                disabled={disabled}
+                value={customerAltPhone || ""}
+                onChange={(e) => setCustomerAltPhone(e.target.value)}
+                placeholder="+91 98765-43210 (Optional)"
+                className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Email Input (if supported) */}
         {setCustomerEmail !== undefined && (
           <div>
@@ -270,7 +302,7 @@ export function CustomerLookupSection({
         )}
 
         {/* Address Input */}
-        <div className={setCustomerEmail !== undefined ? "" : "md:col-span-2"}>
+        <div className={(setCustomerEmail !== undefined && setCustomerAltPhone !== undefined) ? "" : setCustomerEmail !== undefined ? "" : "md:col-span-2"}>
           <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
             <span>Address</span>
             {isSelectedCustomerActive && (
@@ -339,6 +371,12 @@ export function CustomerLookupSection({
                         <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
                           <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                           <span>{cust.email}</span>
+                        </p>
+                      )}
+                      {cust.alternative_mobile_number && (
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>Alt: {cust.alternative_mobile_number}</span>
                         </p>
                       )}
                       {cust.address && (

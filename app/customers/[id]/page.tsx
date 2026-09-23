@@ -26,6 +26,7 @@ import {
   Building2,
   X,
   Upload,
+  Printer,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -34,6 +35,9 @@ import {
   insuranceRecordService,
   insuranceDocumentService,
   companyService,
+  paymentService,
+  settingsService,
+  BusinessSettings,
   CustomerDetailResponse,
   InsuranceRecordItem,
   CustomerVehicleItem,
@@ -42,6 +46,10 @@ import {
   extractApiError,
 } from "@/lib/api";
 import { formatDisplayDate } from "@/lib/date-utils";
+import {
+  printCustomerInsuranceHistory,
+  printTransactionStatement,
+} from "@/lib/print-transaction-receipt";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
 import { InsuranceRecordFormModal } from "@/components/insurance/insurance-record-form-modal";
 import { RecordPaymentModal } from "@/components/insurance/record-payment-modal";
@@ -81,6 +89,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editAltPhone, setEditAltPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -111,17 +120,22 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     setToast({ open: true, type, title, message });
   }, []);
 
+  // Agency Business Settings & Printing State
+  const [agencySettings, setAgencySettings] = useState<BusinessSettings | null>(null);
+  const [printingRecordId, setPrintingRecordId] = useState<number | null>(null);
+
   // Fetch all customer details
   const fetchCustomerData = useCallback(async () => {
     try {
       setLoading(true);
-      const [custData, recordsData, vehiclesData, docsData, companiesData] =
+      const [custData, recordsData, vehiclesData, docsData, companiesData, settingsData] =
         await Promise.all([
           customerService.getById(customerId),
           customerService.getRecords(customerId).catch(() => []),
           customerService.getVehicles(customerId).catch(() => []),
           customerService.getDocuments(customerId).catch(() => []),
           companyService.getAll().catch(() => []),
+          settingsService.get().catch(() => null),
         ]);
 
       setCustomer(custData);
@@ -129,10 +143,12 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       setVehicles(vehiclesData);
       setDocuments(docsData);
       setCompanies(companiesData);
+      setAgencySettings(settingsData);
 
       // Prepopulate edit modal state
       setEditName(custData.name || "");
       setEditPhone(custData.phone || "");
+      setEditAltPhone(custData.alternative_mobile_number || "");
       setEditEmail(custData.email || "");
       setEditAddress(custData.address || "");
     } catch (err: unknown) {
@@ -142,6 +158,56 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       setLoading(false);
     }
   }, [customerId, showToast]);
+
+  // Handler to Print / Save Customer Insurance History
+  const handlePrintCustomerHistory = () => {
+    if (!customer) return;
+    printCustomerInsuranceHistory({
+      customer,
+      records: sortedRecords,
+      settings: agencySettings,
+    });
+  };
+
+  // Handler to Print Transactions Statement for an individual record
+  const handlePrintRecordStatement = async (rec: InsuranceRecordItem) => {
+    setPrintingRecordId(rec.id);
+    try {
+      const history = await paymentService.getHistory(rec.id);
+      const txs = history?.payments || history?.transactions || rec.payments || rec.transactions || [];
+      const recPaid =
+        typeof history?.total_paid !== "undefined" && history?.total_paid !== null
+          ? parseFloat(String(history.total_paid))
+          : typeof rec.total_paid !== "undefined" && rec.total_paid !== null
+          ? parseFloat(String(rec.total_paid))
+          : typeof rec.paid_amount === "number"
+          ? rec.paid_amount
+          : 0;
+      const recBal =
+        typeof history?.outstanding !== "undefined" && history?.outstanding !== null
+          ? parseFloat(String(history.outstanding))
+          : typeof rec.outstanding !== "undefined" && rec.outstanding !== null
+          ? parseFloat(String(rec.outstanding))
+          : typeof rec.balance === "number"
+          ? rec.balance
+          : 0;
+
+      printTransactionStatement({
+        record: rec,
+        transactions: txs,
+        settings: agencySettings,
+        totalPaid: recPaid,
+        balance: recBal,
+      });
+    } catch {
+      printTransactionStatement({
+        record: rec,
+        settings: agencySettings,
+      });
+    } finally {
+      setPrintingRecordId(null);
+    }
+  };
 
   useEffect(() => {
     fetchCustomerData();
@@ -253,6 +319,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       const updated = await customerService.update(customer.id || customer.customer_id || customerId, {
         name: editName.trim(),
         phone: editPhone.trim(),
+        alternative_mobile_number: editAltPhone.trim(),
         email: editEmail.trim(),
         address: editAddress.trim(),
       });
@@ -275,6 +342,8 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     create_new_customer?: boolean;
     customer_name: string;
     customer_phone: string;
+    customer_alternative_mobile_number?: string;
+    alternative_mobile_number?: string;
     customer_email?: string;
     customer_address?: string;
     vehicle_number: string;
@@ -422,6 +491,13 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                         </div>
                       )}
 
+                      {customer.alternative_mobile_number && (
+                        <div className="inline-flex items-center gap-1.5 font-mono text-slate-500" title="Alternative Mobile Number">
+                          <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span>Alt: {customer.alternative_mobile_number}</span>
+                        </div>
+                      )}
+
                       {customer.address && (
                         <div className="inline-flex items-center gap-1.5 text-slate-500">
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -527,6 +603,42 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
               <div className="space-y-8 animate-in fade-in duration-150">
                 {/* Policies Table Card */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                  {/* Card Header with Print / Save as PDF actions */}
+                  <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">
+                        Customer Insurance History
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {records.length} policy record{records.length === 1 ? "" : "s"} under this customer profile
+                      </p>
+                    </div>
+
+                    {records.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handlePrintCustomerHistory}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                          title="Save customer insurance history portfolio as PDF"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Save as PDF</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handlePrintCustomerHistory}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                          title="Print customer insurance history statement"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Print History</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {records.length === 0 ? (
                     <div className="py-16 text-center space-y-2">
                       <Shield className="w-8 h-8 mx-auto text-slate-300" />
@@ -677,7 +789,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                                       <Eye className="w-4 h-4" />
                                     </button>
 
-                                    {/* Edit Pencil Icon */}
+                                     {/* Edit Pencil Icon */}
                                     <button
                                       type="button"
                                       onClick={() => setEditRecord(rec)}
@@ -685,6 +797,21 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                                       title="Edit Policy"
                                     >
                                       <Pencil className="w-4 h-4" />
+                                    </button>
+
+                                    {/* Print Transactions Statement Button */}
+                                    <button
+                                      type="button"
+                                      disabled={printingRecordId === rec.id}
+                                      onClick={() => handlePrintRecordStatement(rec)}
+                                      className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-60"
+                                      title={`Print Transaction Statement for Policy #${rec.policy_number}`}
+                                    >
+                                      {printingRecordId === rec.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                      ) : (
+                                        <Printer className="w-4 h-4" />
+                                      )}
                                     </button>
 
                                     {/* Make Payment Button if balance > 0 */}
@@ -985,6 +1112,19 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="+91 98765-43210"
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Alternative Mobile Number <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editAltPhone}
+                  onChange={(e) => setEditAltPhone(e.target.value)}
+                  placeholder="e.g. +91 98765-43211"
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>

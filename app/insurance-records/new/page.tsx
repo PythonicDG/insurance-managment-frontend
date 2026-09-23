@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Calendar as CalendarIcon,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -36,6 +37,10 @@ import {
   getTodayDateString,
   getNextYearDateString,
 } from "@/lib/date-utils";
+import {
+  normalizeVehicleNumber,
+  validateVehicleRegistration,
+} from "@/lib/vehicle-utils";
 
 function AddInsuranceRecordForm() {
   const router = useRouter();
@@ -46,13 +51,16 @@ function AddInsuranceRecordForm() {
   // Form State - Customer Details
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAltPhone, setCustomerAltPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
   const [isDifferentPerson, setIsDifferentPerson] = useState(false);
 
   // Form State - Vehicle Details
   const [vehicleType, setVehicleType] = useState("Car");
-  const [vehicleNumber, setVehicleNumber] = useState("");
+  const [vehicleNumber, setVehicleNumber] = useState(() =>
+    normalizeVehicleNumber(searchParams.get("vehicle") || "")
+  );
   const [vehicleCheck, setVehicleCheck] = useState<VehicleCheckResponse | null>(null);
   const [checkingVehicle, setCheckingVehicle] = useState(false);
   const [vehicleError, setVehicleError] = useState("");
@@ -149,9 +157,10 @@ function AddInsuranceRecordForm() {
             setSelectedCustomer(rec.customer || null);
             setCustomerName(rec.customer?.name || "");
             setCustomerPhone(rec.customer?.phone || "");
+            setCustomerAltPhone(rec.alternative_mobile_number || rec.customer?.alternative_mobile_number || "");
             setCustomerAddress(rec.customer?.address || "");
             setVehicleType(rec.vehicle?.vehicle_type || "Car");
-            setVehicleNumber(rec.vehicle?.vehicle_number || "");
+            setVehicleNumber(normalizeVehicleNumber(rec.vehicle?.vehicle_number || ""));
             if (rec.insurance_company?.id) {
               setSelectedCompanyId(rec.insurance_company.id);
             }
@@ -263,11 +272,11 @@ function AddInsuranceRecordForm() {
 
   // Debounced vehicle active policy check
   useEffect(() => {
-    const trimmed = vehicleNumber.trim();
+    const normalized = normalizeVehicleNumber(vehicleNumber);
     let active = true;
 
     const timer = setTimeout(async () => {
-      if (!trimmed) {
+      if (!normalized) {
         if (active) {
           setVehicleCheck(null);
           setVehicleError("");
@@ -276,17 +285,27 @@ function AddInsuranceRecordForm() {
         return;
       }
 
+      // Check format validity before making backend request
+      const validation = validateVehicleRegistration(normalized);
+      if (!validation.isValid) {
+        if (active) {
+          setVehicleCheck(null);
+          setCheckingVehicle(false);
+        }
+        return;
+      }
+
       setCheckingVehicle(true);
       try {
         const res = await insuranceRecordService.checkVehicle(
-          trimmed,
+          normalized,
           isEditMode && editId ? Number(editId) : undefined
         );
         if (!active) return;
         setVehicleCheck(res);
         if (res.has_active_policy && res.active_record && !isEditMode) {
           setVehicleError(
-            `Active policy #${res.active_record.policy_number} already exists for vehicle "${trimmed}".`
+            `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
           );
         } else {
           setVehicleError("");
@@ -302,6 +321,9 @@ function AddInsuranceRecordForm() {
           if (res.customer_name && !customerName) {
             setCustomerName(res.customer_name);
           }
+          if (res.customer_alternative_mobile_number && !customerAltPhone) {
+            setCustomerAltPhone(res.customer_alternative_mobile_number);
+          }
         }
       } catch {
         // Handled gracefully in background
@@ -310,7 +332,7 @@ function AddInsuranceRecordForm() {
           setCheckingVehicle(false);
         }
       }
-    }, trimmed ? 400 : 0);
+    }, normalized ? 400 : 0);
 
     return () => {
       active = false;
@@ -319,18 +341,27 @@ function AddInsuranceRecordForm() {
   }, [vehicleNumber, isEditMode, editId, vehicleType, customerPhone, customerName]);
 
   const handleVehicleNumberBlur = async () => {
-    const trimmed = vehicleNumber.trim();
-    if (!trimmed) return;
+    const normalized = normalizeVehicleNumber(vehicleNumber);
+    if (!normalized) return;
+
+    // Validate registration format on blur
+    const validation = validateVehicleRegistration(normalized);
+    if (!validation.isValid) {
+      setVehicleError(validation.error || "Invalid vehicle registration number.");
+      setVehicleCheck(null);
+      return;
+    }
+
     try {
       setCheckingVehicle(true);
       const res = await insuranceRecordService.checkVehicle(
-        trimmed,
+        normalized,
         isEditMode && editId ? Number(editId) : undefined
       );
       setVehicleCheck(res);
       if (res.has_active_policy && res.active_record && !isEditMode) {
         setVehicleError(
-          `Active policy #${res.active_record.policy_number} already exists for vehicle "${trimmed}".`
+          `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
         );
       } else {
         setVehicleError("");
@@ -421,10 +452,21 @@ function AddInsuranceRecordForm() {
       setErrorMessage("Please enter customer phone number.");
       return;
     }
-    if (!vehicleNumber.trim()) {
+    const normalizedVeh = normalizeVehicleNumber(vehicleNumber);
+    if (!normalizedVeh) {
+      setVehicleError("Please enter vehicle number.");
       setErrorMessage("Please enter vehicle number.");
       return;
     }
+    const vehValidation = validateVehicleRegistration(normalizedVeh);
+    if (!vehValidation.isValid) {
+      const err = vehValidation.error || "Please enter a valid Indian vehicle registration number.";
+      setVehicleError(err);
+      setErrorMessage(err);
+      return;
+    }
+    setVehicleNumber(normalizedVeh);
+
     if (!startDate || !endDate) {
       setErrorMessage("Please select valid insurance start and end dates.");
       return;
@@ -456,7 +498,7 @@ function AddInsuranceRecordForm() {
     // Prevent submission if active policy already exists on this vehicle
     if (vehicleCheck?.has_active_policy && vehicleCheck.active_record && !isEditMode) {
       setErrorMessage(
-        `Active policy #${vehicleCheck.active_record.policy_number} already exists for vehicle "${vehicleNumber.trim().toUpperCase()}". Please renew or update the existing policy.`
+        `Active policy #${vehicleCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update the existing policy.`
       );
       return;
     }
@@ -481,14 +523,14 @@ function AddInsuranceRecordForm() {
       }
 
       // Synchronous vehicle active policy double-check
-      if (!isEditMode && vehicleNumber.trim()) {
+      if (!isEditMode && normalizedVeh) {
         const vCheck = await insuranceRecordService.checkVehicle(
-          vehicleNumber.trim(),
+          normalizedVeh,
           isEditMode && editId ? Number(editId) : undefined
         );
         if (vCheck.has_active_policy && vCheck.active_record) {
           setVehicleCheck(vCheck);
-          const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${vehicleNumber.trim().toUpperCase()}". Please renew or update the existing policy.`;
+          const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update the existing policy.`;
           setVehicleError(msg);
           setErrorMessage(msg);
           setSubmitting(false);
@@ -503,8 +545,10 @@ function AddInsuranceRecordForm() {
         create_new_customer: isDifferentPerson,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
+        customer_alternative_mobile_number: customerAltPhone.trim() || undefined,
+        alternative_mobile_number: customerAltPhone.trim() || undefined,
         customer_address: customerAddress.trim() || undefined,
-        vehicle_number: vehicleNumber.trim().toUpperCase(),
+        vehicle_number: normalizedVeh,
         vehicle_type: vehicleType.trim(),
         entry_date: entryDate || getTodayDateString(),
         policy_start_date: startDate,
@@ -657,6 +701,8 @@ function AddInsuranceRecordForm() {
               setCustomerName={setCustomerName}
               customerPhone={customerPhone}
               setCustomerPhone={setCustomerPhone}
+              customerAltPhone={customerAltPhone}
+              setCustomerAltPhone={setCustomerAltPhone}
               customerAddress={customerAddress}
               setCustomerAddress={setCustomerAddress}
               selectedCustomer={selectedCustomer}
@@ -712,11 +758,17 @@ function AddInsuranceRecordForm() {
                       required
                       value={vehicleNumber}
                       onChange={(e) => {
-                        setVehicleNumber(e.target.value.toUpperCase());
-                        if (vehicleError) setVehicleError("");
+                        const normalized = normalizeVehicleNumber(e.target.value);
+                        if (normalized.length <= 11) {
+                          setVehicleNumber(normalized);
+                          const check = validateVehicleRegistration(normalized);
+                          if (check.isValid) {
+                            setVehicleError("");
+                          }
+                        }
                       }}
                       onBlur={handleVehicleNumberBlur}
-                      placeholder="MH-12-AB-1234"
+                      placeholder="e.g. MH12AB1234 or 22BH1234AA"
                       className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border rounded-xl text-slate-800 placeholder:text-slate-400 font-mono uppercase focus:outline-none focus:ring-2 transition-colors ${
                         vehicleCheck?.has_active_policy
                           ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/15"
@@ -731,9 +783,10 @@ function AddInsuranceRecordForm() {
                       </div>
                     )}
                   </div>
-                  {!vehicleCheck && vehicleError && (
-                    <p className="mt-1.5 text-xs text-red-600 font-medium">
-                      {vehicleError}
+                  {vehicleError && !vehicleCheck?.has_active_policy && (
+                    <p className="mt-1.5 text-xs text-red-600 font-medium flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+                      <span>{vehicleError}</span>
                     </p>
                   )}
                 </div>

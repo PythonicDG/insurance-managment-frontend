@@ -96,6 +96,9 @@ export function VehicleActivePolicyAlert({
                   {active.customer?.phone && (
                     <p className="text-[11px] text-slate-500 truncate">
                       {active.customer.phone}
+                      {(active.alternative_mobile_number || active.customer?.alternative_mobile_number) && (
+                        <span className="text-slate-400"> (Alt: {active.alternative_mobile_number || active.customer?.alternative_mobile_number})</span>
+                      )}
                     </p>
                   )}
                 </div>

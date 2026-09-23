@@ -231,7 +231,15 @@ export function RenewPolicyModal({
             <div>
               <p className="text-slate-400 font-medium">Customer</p>
               <p className="font-bold text-slate-800 mt-0.5 truncate">
-                {record.customer?.name || record.customer?.phone}
+                {record.customer?.name || "Customer"}
+              </p>
+              <p className="text-slate-500 text-[11px] mt-0.5">
+                {record.customer?.phone || ""}
+                {(record.alternative_mobile_number || record.customer?.alternative_mobile_number) && (
+                  <span className="text-slate-400 ml-1.5">
+                    • Alt: {record.alternative_mobile_number || record.customer?.alternative_mobile_number}
+                  </span>
+                )}
               </p>
             </div>
             <div>

@@ -91,6 +91,9 @@ export function PolicyDuplicateAlert({
                 {duplicateRecord.customer?.phone && (
                   <p className="text-[11px] text-slate-500 truncate">
                     {duplicateRecord.customer.phone}
+                    {(duplicateRecord.alternative_mobile_number || duplicateRecord.customer?.alternative_mobile_number) && (
+                      <span className="text-slate-400"> (Alt: {duplicateRecord.alternative_mobile_number || duplicateRecord.customer?.alternative_mobile_number})</span>
+                    )}
                   </p>
                 )}
               </div>

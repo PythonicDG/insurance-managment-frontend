@@ -208,6 +208,12 @@ export function ViewExistingRecordModal({
                   {record.customer?.phone || "—"}
                 </p>
               </div>
+              <div>
+                <p className="text-slate-400 font-medium">Alternative Mobile Number</p>
+                <p className="font-semibold text-slate-800 mt-0.5">
+                  {record.alternative_mobile_number || record.customer?.alternative_mobile_number || "—"}
+                </p>
+              </div>
               {record.customer?.email && (
                 <div>
                   <p className="text-slate-400 font-medium">Email</p>
@@ -215,7 +221,7 @@ export function ViewExistingRecordModal({
                 </div>
               )}
               {record.customer?.address && (
-                <div className={record.customer?.email ? "" : "sm:col-span-2"}>
+                <div className="sm:col-span-2">
                   <p className="text-slate-400 font-medium">Address</p>
                   <p className="text-slate-700 mt-0.5">{record.customer.address}</p>
                 </div>

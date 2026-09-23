@@ -46,6 +46,7 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<CustomerSummary | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editAltPhone, setEditAltPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -55,6 +56,7 @@ export default function CustomersPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createPhone, setCreatePhone] = useState("");
+  const [createAltPhone, setCreateAltPhone] = useState("");
   const [createAddress, setCreateAddress] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createSaving, setCreateSaving] = useState(false);
@@ -138,6 +140,7 @@ export default function CustomersPage() {
     setEditingCustomer(cust);
     setEditName(cust.name || "");
     setEditPhone(cust.phone || "");
+    setEditAltPhone(cust.alternative_mobile_number || "");
     setEditAddress(cust.address || "");
     setEditEmail(cust.email || "");
     setEditError("");
@@ -159,6 +162,7 @@ export default function CustomersPage() {
       const updated = await customerService.update(editingCustomer.id, {
         name: editName.trim(),
         phone: editPhone.trim(),
+        alternative_mobile_number: editAltPhone.trim(),
         address: editAddress.trim(),
         email: editEmail.trim(),
       });
@@ -205,6 +209,7 @@ export default function CustomersPage() {
       const newCust = await customerService.create({
         name: createName.trim(),
         phone: createPhone.trim(),
+        alternative_mobile_number: createAltPhone.trim(),
         address: createAddress.trim(),
         email: createEmail.trim(),
       });
@@ -218,6 +223,7 @@ export default function CustomersPage() {
       setIsCreateModalOpen(false);
       setCreateName("");
       setCreatePhone("");
+      setCreateAltPhone("");
       setCreateAddress("");
       setCreateEmail("");
     } catch (err: unknown) {
@@ -248,6 +254,7 @@ export default function CustomersPage() {
       (c) =>
         (c.name && c.name.toLowerCase().includes(term)) ||
         (c.phone && c.phone.toLowerCase().includes(term)) ||
+        (c.alternative_mobile_number && c.alternative_mobile_number.toLowerCase().includes(term)) ||
         (c.email && c.email.toLowerCase().includes(term)) ||
         (c.address && c.address.toLowerCase().includes(term)) ||
         String(c.customer_id || c.id).includes(term)
@@ -353,9 +360,14 @@ export default function CustomersPage() {
                               ID: #{cust.customer_id || cust.id}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                          <p className="text-xs text-slate-500 font-mono flex items-center gap-1 flex-wrap">
                             <Phone className="w-3 h-3 text-slate-400" />
                             <span>{cust.phone}</span>
+                            {cust.alternative_mobile_number && (
+                              <span className="text-[10px] text-slate-400 font-sans">
+                                (Alt: {cust.alternative_mobile_number})
+                              </span>
+                            )}
                           </p>
                           {cust.email && (
                             <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
@@ -522,6 +534,11 @@ export default function CustomersPage() {
                               </span>
                             )}
                           </div>
+                          {cust.alternative_mobile_number && (
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              Alt: {cust.alternative_mobile_number}
+                            </div>
+                          )}
                         </td>
 
                         {/* Email & Address */}
@@ -657,6 +674,19 @@ export default function CustomersPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Alternative Mobile Number <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editAltPhone}
+                  onChange={(e) => setEditAltPhone(e.target.value)}
+                  placeholder="e.g. +91 98765-43211"
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Email Address
                 </label>
                 <input
@@ -768,6 +798,19 @@ export default function CustomersPage() {
                   value={createPhone}
                   onChange={(e) => setCreatePhone(e.target.value)}
                   placeholder="+91 98765-43210"
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Alternative Mobile Number <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={createAltPhone}
+                  onChange={(e) => setCreateAltPhone(e.target.value)}
+                  placeholder="e.g. +91 98765-43211"
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>

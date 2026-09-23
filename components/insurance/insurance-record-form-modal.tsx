@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Calendar as CalendarIcon, Building2, Car, Loader2 } from "lucide-react";
+import { X, Calendar as CalendarIcon, Building2, Car, Loader2, AlertCircle } from "lucide-react";
 import {
   InsuranceCompany,
   InsuranceRecordItem,
@@ -19,6 +19,10 @@ import {
   getTodayDateString,
   getNextYearDateString,
 } from "@/lib/date-utils";
+import {
+  normalizeVehicleNumber,
+  validateVehicleRegistration,
+} from "@/lib/vehicle-utils";
 
 interface InsuranceRecordFormModalProps {
   isOpen: boolean;
@@ -32,6 +36,8 @@ interface InsuranceRecordFormModalProps {
     create_new_customer?: boolean;
     customer_name: string;
     customer_phone: string;
+    customer_alternative_mobile_number?: string;
+    alternative_mobile_number?: string;
     customer_email?: string;
     customer_address?: string;
     vehicle_number: string;
@@ -74,6 +80,9 @@ function InsuranceRecordFormDialog({
   const [customerPhone, setCustomerPhone] = useState(
     () => recordToEdit?.customer?.phone || ""
   );
+  const [customerAltPhone, setCustomerAltPhone] = useState(
+    () => recordToEdit?.alternative_mobile_number || recordToEdit?.customer?.alternative_mobile_number || ""
+  );
   const [customerEmail, setCustomerEmail] = useState(
     () => recordToEdit?.customer?.email || ""
   );
@@ -85,8 +94,8 @@ function InsuranceRecordFormDialog({
   );
   const [isDifferentPerson, setIsDifferentPerson] = useState(false);
 
-  const [vehicleNumber, setVehicleNumber] = useState(
-    () => recordToEdit?.vehicle?.vehicle_number || ""
+  const [vehicleNumber, setVehicleNumber] = useState(() =>
+    normalizeVehicleNumber(recordToEdit?.vehicle?.vehicle_number || "")
   );
   const [vehicleType, setVehicleType] = useState(
     () => recordToEdit?.vehicle?.vehicle_type || "SUV (Mahindra XUV700)"
@@ -204,11 +213,11 @@ function InsuranceRecordFormDialog({
 
   // Debounced vehicle check
   useEffect(() => {
-    const trimmed = vehicleNumber.trim();
+    const normalized = normalizeVehicleNumber(vehicleNumber);
     let active = true;
 
     const timer = setTimeout(async () => {
-      if (!trimmed) {
+      if (!normalized) {
         if (active) {
           setVehicleCheck(null);
           setVehicleError("");
@@ -217,17 +226,27 @@ function InsuranceRecordFormDialog({
         return;
       }
 
+      // Check format validity before making backend request
+      const validation = validateVehicleRegistration(normalized);
+      if (!validation.isValid) {
+        if (active) {
+          setVehicleCheck(null);
+          setCheckingVehicle(false);
+        }
+        return;
+      }
+
       setCheckingVehicle(true);
       try {
         const res = await insuranceRecordService.checkVehicle(
-          trimmed,
+          normalized,
           recordToEdit?.id
         );
         if (!active) return;
         setVehicleCheck(res);
         if (res.has_active_policy && res.active_record && !recordToEdit) {
           setVehicleError(
-            `Active policy #${res.active_record.policy_number} already exists for vehicle "${trimmed}".`
+            `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
           );
         } else {
           setVehicleError("");
@@ -242,6 +261,9 @@ function InsuranceRecordFormDialog({
             setCustomerName(res.customer_name);
           }
         }
+        if (res.exists && res.customer_alternative_mobile_number && !customerAltPhone) {
+          setCustomerAltPhone(res.customer_alternative_mobile_number);
+        }
       } catch {
         // ignore
       } finally {
@@ -249,27 +271,36 @@ function InsuranceRecordFormDialog({
           setCheckingVehicle(false);
         }
       }
-    }, trimmed ? 400 : 0);
+    }, normalized ? 400 : 0);
 
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [vehicleNumber, recordToEdit?.id, vehicleType, customerPhone, customerName]);
+  }, [vehicleNumber, recordToEdit?.id, vehicleType, customerPhone, customerName, customerAltPhone]);
 
   const handleVehicleNumberBlur = async () => {
-    const trimmed = vehicleNumber.trim();
-    if (!trimmed) return;
+    const normalized = normalizeVehicleNumber(vehicleNumber);
+    if (!normalized) return;
+
+    // Validate registration format on blur
+    const validation = validateVehicleRegistration(normalized);
+    if (!validation.isValid) {
+      setVehicleError(validation.error || "Invalid vehicle registration number.");
+      setVehicleCheck(null);
+      return;
+    }
+
     try {
       setCheckingVehicle(true);
       const res = await insuranceRecordService.checkVehicle(
-        trimmed,
+        normalized,
         recordToEdit?.id
       );
       setVehicleCheck(res);
       if (res.has_active_policy && res.active_record && !recordToEdit) {
         setVehicleError(
-          `Active policy #${res.active_record.policy_number} already exists for vehicle "${trimmed}".`
+          `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
         );
       } else {
         setVehicleError("");
@@ -294,10 +325,21 @@ function InsuranceRecordFormDialog({
       setErrorMsg("Customer name and phone are required.");
       return;
     }
-    if (!vehicleNumber.trim()) {
+    const normalizedVeh = normalizeVehicleNumber(vehicleNumber);
+    if (!normalizedVeh) {
+      setVehicleError("Vehicle number is required.");
       setErrorMsg("Vehicle number is required.");
       return;
     }
+    const vehValidation = validateVehicleRegistration(normalizedVeh);
+    if (!vehValidation.isValid) {
+      const err = vehValidation.error || "Please enter a valid Indian vehicle registration number.";
+      setVehicleError(err);
+      setErrorMsg(err);
+      return;
+    }
+    setVehicleNumber(normalizedVeh);
+
     if (!startDate || !expiryDate) {
       setErrorMsg("Start date and expiry date are required.");
       return;
@@ -317,7 +359,7 @@ function InsuranceRecordFormDialog({
 
     if (vehicleCheck?.has_active_policy && vehicleCheck.active_record && !recordToEdit) {
       setErrorMsg(
-        `Active policy #${vehicleCheck.active_record.policy_number} already exists for vehicle "${vehicleNumber.trim().toUpperCase()}". Please renew or update.`
+        `Active policy #${vehicleCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update.`
       );
       return;
     }
@@ -340,14 +382,14 @@ function InsuranceRecordFormDialog({
       }
 
       // Synchronous vehicle check before submission
-      if (vehicleNumber.trim()) {
+      if (normalizedVeh) {
         const vCheck = await insuranceRecordService.checkVehicle(
-          vehicleNumber.trim(),
+          normalizedVeh,
           recordToEdit ? recordToEdit.id : undefined
         );
         if (vCheck.has_active_policy && vCheck.active_record) {
           setVehicleCheck(vCheck);
-          const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${vehicleNumber.trim().toUpperCase()}". Please renew or update.`;
+          const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update.`;
           setVehicleError(msg);
           setErrorMsg(msg);
           setSubmitting(false);
@@ -362,9 +404,11 @@ function InsuranceRecordFormDialog({
         create_new_customer: isDifferentPerson,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
+        customer_alternative_mobile_number: customerAltPhone.trim() || undefined,
+        alternative_mobile_number: customerAltPhone.trim() || undefined,
         customer_email: customerEmail.trim() || undefined,
         customer_address: customerAddress.trim() || undefined,
-        vehicle_number: vehicleNumber.trim().toUpperCase(),
+        vehicle_number: normalizedVeh,
         vehicle_type: vehicleType.trim(),
         entry_date: entryDate || getTodayDateString(),
         policy_start_date: startDate,
@@ -443,6 +487,8 @@ function InsuranceRecordFormDialog({
             setCustomerName={setCustomerName}
             customerPhone={customerPhone}
             setCustomerPhone={setCustomerPhone}
+            customerAltPhone={customerAltPhone}
+            setCustomerAltPhone={setCustomerAltPhone}
             customerEmail={customerEmail}
             setCustomerEmail={setCustomerEmail}
             customerAddress={customerAddress}
@@ -478,11 +524,17 @@ function InsuranceRecordFormDialog({
                     required
                     value={vehicleNumber}
                     onChange={(e) => {
-                      setVehicleNumber(e.target.value.toUpperCase());
-                      if (vehicleError) setVehicleError("");
+                      const normalized = normalizeVehicleNumber(e.target.value);
+                      if (normalized.length <= 11) {
+                        setVehicleNumber(normalized);
+                        const check = validateVehicleRegistration(normalized);
+                        if (check.isValid) {
+                          setVehicleError("");
+                        }
+                      }
                     }}
                     onBlur={handleVehicleNumberBlur}
-                    placeholder="e.g. MH-12-PQ-9876"
+                    placeholder="e.g. MH12AB1234 or 22BH1234AA"
                     className={`w-full px-3.5 py-2 text-xs sm:text-sm bg-white border rounded-xl font-mono uppercase text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
                       vehicleCheck?.has_active_policy
                         ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/15"
@@ -497,9 +549,10 @@ function InsuranceRecordFormDialog({
                     </div>
                   )}
                 </div>
-                {!vehicleCheck && vehicleError && (
-                  <p className="mt-1 text-xs text-red-600 font-medium">
-                    {vehicleError}
+                {vehicleError && !vehicleCheck?.has_active_policy && (
+                  <p className="mt-1 text-xs text-red-600 font-medium flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+                    <span>{vehicleError}</span>
                   </p>
                 )}
               </div>
@@ -531,6 +584,7 @@ function InsuranceRecordFormDialog({
                         setSelectedCustomer(activeRec.customer);
                         setCustomerName(activeRec.customer.name || "");
                         setCustomerPhone(activeRec.customer.phone || "");
+                        setCustomerAltPhone(activeRec.alternative_mobile_number || activeRec.customer.alternative_mobile_number || "");
                         setCustomerAddress(activeRec.customer.address || "");
                       }
                       if (activeRec.vehicle?.vehicle_type) {

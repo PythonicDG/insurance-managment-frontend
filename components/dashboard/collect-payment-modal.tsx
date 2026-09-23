@@ -240,7 +240,10 @@ export function CollectPaymentModal({
                         {rec.customer?.phone && (
                           <span className="text-slate-500 flex items-center gap-1 text-[11px]">
                             <Phone className="w-3 h-3 text-slate-400" />
-                            {rec.customer.phone}
+                            <span>{rec.customer.phone}</span>
+                            {(rec.alternative_mobile_number || rec.customer?.alternative_mobile_number) && (
+                              <span className="text-slate-400">(Alt: {rec.alternative_mobile_number || rec.customer?.alternative_mobile_number})</span>
+                            )}
                           </span>
                         )}
                         <span className="text-slate-400 text-[11px]">

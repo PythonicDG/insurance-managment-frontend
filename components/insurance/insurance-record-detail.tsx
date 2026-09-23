@@ -29,6 +29,7 @@ import {
   printTransactionStatement,
   printSinglePaymentReceipt,
   printVehicleHistorySummary,
+  printSingleInsuranceRecord,
 } from "@/lib/print-transaction-receipt";
 
 interface InsuranceRecordDetailProps {
@@ -271,6 +272,13 @@ export function InsuranceRecordDetail({
     });
   };
 
+  const handlePrintRecord = () => {
+    printSingleInsuranceRecord({
+      record: currentRecord,
+      settings: agencySettings,
+    });
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {/* Top Breadcrumb & Page Header */}
@@ -315,6 +323,16 @@ export function InsuranceRecordDetail({
                 FULLY PAID
               </span>
             )}
+
+            <button
+              type="button"
+              onClick={handlePrintRecord}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 bg-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Print or Save complete policy record voucher as PDF"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600" />
+              <span>Print Policy</span>
+            </button>
 
             <button
               type="button"
@@ -457,7 +475,7 @@ export function InsuranceRecordDetail({
             </div>
 
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                     Customer Name
@@ -475,6 +493,26 @@ export function InsuranceRecordDetail({
                     {record.customer?.phone || "—"}
                   </p>
                 </div>
+
+                <div>
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    Alternative Mobile Number
+                  </p>
+                  <p className="text-xs sm:text-sm font-semibold text-slate-800">
+                    {record.alternative_mobile_number || record.customer?.alternative_mobile_number || "—"}
+                  </p>
+                </div>
+
+                {record.customer?.email && (
+                  <div>
+                    <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Email Address
+                    </p>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                      {record.customer.email}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -105,6 +105,7 @@ export interface CustomerSummary {
   customer_id?: number;
   name: string;
   phone: string;
+  alternative_mobile_number?: string;
   email?: string;
   address?: string;
   vehicles_count?: number;
@@ -176,6 +177,7 @@ export interface InsuranceRecordItem {
   policy_start_date: string;
   policy_expiry_date: string;
   total_premium: number | string;
+  alternative_mobile_number?: string;
   paid_amount?: number;
   balance?: number;
   total_paid?: number | string;
@@ -212,6 +214,8 @@ export interface InsuranceRecordPayload {
   create_new_customer?: boolean;
   customer_name: string;
   customer_phone: string;
+  customer_alternative_mobile_number?: string;
+  alternative_mobile_number?: string;
   customer_email?: string;
   customer_address?: string;
   vehicle_number: string;
@@ -246,6 +250,7 @@ export interface VehicleCheckResponse {
   customer_id?: number;
   customer_name?: string;
   customer_phone?: string;
+  customer_alternative_mobile_number?: string;
   has_active_policy: boolean;
   active_record: InsuranceRecordItem | null;
   has_expired_policy: boolean;
@@ -800,6 +805,8 @@ export interface LedgerRecord {
   customer_id: number;
   customer_name: string;
   customer_phone: string;
+  customer_alternative_mobile_number?: string;
+  alternative_mobile_number?: string;
   customer_email?: string;
   vehicle_id: number;
   vehicle_number: string;
