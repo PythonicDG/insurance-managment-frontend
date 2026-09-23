@@ -125,9 +125,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const [printingRecordId, setPrintingRecordId] = useState<number | null>(null);
 
   // Fetch all customer details
-  const fetchCustomerData = useCallback(async () => {
+  const fetchCustomerData = useCallback(async (showFullLoader = true) => {
     try {
-      setLoading(true);
+      if (showFullLoader) setLoading(true);
       const [custData, recordsData, vehiclesData, docsData, companiesData, settingsData] =
         await Promise.all([
           customerService.getById(customerId),
@@ -155,7 +155,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       const errInfo = extractApiError(err, "Failed to load customer details.");
       showToast("error", "Error", errInfo.message);
     } finally {
-      setLoading(false);
+      if (showFullLoader) setLoading(false);
     }
   }, [customerId, showToast]);
 
@@ -281,16 +281,22 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const renderPaymentStatusBadge = (rec: InsuranceRecordItem) => {
     const total = Number(rec.total_premium) || 0;
     const paid = Number(rec.paid_amount ?? rec.total_paid ?? 0);
-    const balance = rec.balance !== undefined ? Number(rec.balance) : Math.max(0, total - paid);
+    const rawBal =
+      rec.balance !== undefined && rec.balance !== null
+        ? Number(rec.balance)
+        : rec.outstanding !== undefined && rec.outstanding !== null
+        ? Number(rec.outstanding)
+        : Math.max(0, total - paid);
+    const balance = Math.max(0, isNaN(rawBal) ? 0 : rawBal);
 
-    if (paid >= total && total > 0) {
+    if (rec.payment_status === "PAID" || (balance <= 0 && total > 0)) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
           Paid
         </span>
       );
     }
-    if (paid > 0 && balance > 0) {
+    if (rec.payment_status === "PARTIAL" || (paid > 0 && balance > 0)) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
           Partial
@@ -359,7 +365,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       await insuranceRecordService.update(editRecord.id, formData);
       setEditRecord(null);
       showToast("success", "Policy Updated", "Insurance record was successfully updated.");
-      fetchCustomerData();
+      fetchCustomerData(false);
     } catch (err: unknown) {
       const errInfo = extractApiError(err, "Failed to update record.");
       showToast("error", "Error", errInfo.message);
@@ -367,10 +373,48 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   };
 
   // Payment Saved Callback
-  const handlePaymentSaved = () => {
-    setIsUploadDocOpen(false);
-    showToast("success", "Payment Recorded", "Payment transaction saved successfully.");
-    fetchCustomerData();
+  const handlePaymentSaved = async (paymentData: {
+    recordId: number;
+    paymentType: "full" | "partial";
+    amount: number;
+    paymentMode: string;
+    paymentDate: string;
+    remark: string;
+  }) => {
+    try {
+      await paymentService.create({
+        recordId: paymentData.recordId,
+        amount: paymentData.amount,
+        payment_mode: paymentData.paymentMode,
+        payment_date: paymentData.paymentDate,
+        notes:
+          paymentData.remark ||
+          (paymentData.paymentType === "full"
+            ? "Full payment recorded"
+            : "Partial payment recorded"),
+      });
+
+      // Clear legacy localStorage cache for this record if any exists
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(`insure_payments_${paymentData.recordId}`);
+        } catch {
+          // ignore
+        }
+      }
+
+      setPaymentRecord(null);
+      showToast(
+        "success",
+        "Payment Recorded",
+        `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} recorded successfully.`
+      );
+      await fetchCustomerData(false);
+    } catch (err: unknown) {
+      const errInfo = extractApiError(err, "Failed to record payment.");
+      showToast("error", "Payment Failed", errInfo.message);
+      throw err;
+    }
   };
 
   // Handle Document Upload
@@ -398,7 +442,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       setUploadDocName("");
       setUploadRecordId("");
       showToast("success", "Document Uploaded", "Document attached successfully.");
-      fetchCustomerData();
+      fetchCustomerData(false);
     } catch (err: unknown) {
       const errInfo = extractApiError(err, "Failed to upload document.");
       setUploadError(errInfo.message);
@@ -728,10 +772,13 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                           {sortedRecords.map((rec) => {
                             const total = Number(rec.total_premium) || 0;
                             const paid = Number(rec.paid_amount ?? rec.total_paid ?? 0);
-                            const balance =
-                              rec.balance !== undefined
+                            const rawBal =
+                              rec.balance !== undefined && rec.balance !== null
                                 ? Number(rec.balance)
+                                : rec.outstanding !== undefined && rec.outstanding !== null
+                                ? Number(rec.outstanding)
                                 : Math.max(0, total - paid);
+                            const balance = Math.max(0, isNaN(rawBal) ? 0 : rawBal);
 
                             return (
                               <tr key={rec.id} className="hover:bg-slate-50/60 transition-colors">

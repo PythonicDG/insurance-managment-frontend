@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Calendar as CalendarIcon, CheckCircle2 } from "lucide-react";
-import { InsuranceRecordItem } from "@/lib/api";
+import { InsuranceRecordItem, extractApiError } from "@/lib/api";
 import { getTodayDateString } from "@/lib/date-utils";
 
 interface RecordPaymentModalProps {
@@ -16,7 +16,7 @@ interface RecordPaymentModalProps {
     paymentMode: string;
     paymentDate: string;
     remark: string;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 interface DialogProps {
@@ -30,17 +30,18 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
   const total =
     typeof record.total_premium === "number"
       ? record.total_premium
-      : parseFloat(String(record.total_premium || 0));
+      : parseFloat(String(record.total_premium || 0)) || 0;
   const paid =
     typeof record.paid_amount === "number"
       ? record.paid_amount
-      : parseFloat(String(record.paid_amount || 0));
-  const outstandingBalance = Math.max(
-    0,
-    record.balance !== undefined
-      ? record.balance
-      : Math.max(0, total - paid)
-  );
+      : parseFloat(String(record.paid_amount ?? record.total_paid ?? 0)) || 0;
+  const rawBalance =
+    record.balance !== undefined && record.balance !== null
+      ? parseFloat(String(record.balance))
+      : record.outstanding !== undefined && record.outstanding !== null
+      ? parseFloat(String(record.outstanding))
+      : Math.max(0, total - paid);
+  const outstandingBalance = Math.max(0, isNaN(rawBalance) ? 0 : rawBalance);
   const isFullyPaid = outstandingBalance <= 0;
 
   const [paymentType, setPaymentType] = useState<"full" | "partial">("partial");
@@ -64,6 +65,11 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
     if (type === "full") {
       setAmount(outstandingBalance);
       setError("");
+    } else {
+      if (Number(amount) >= outstandingBalance && outstandingBalance > 0) {
+        setAmount(Math.round(outstandingBalance * 0.5) || 1);
+        setError("");
+      }
     }
   };
 
@@ -76,10 +82,15 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
       );
     } else {
       setError("");
+      if (parsed < outstandingBalance && paymentType === "full") {
+        setPaymentType("partial");
+      } else if (parsed === outstandingBalance && paymentType === "partial" && parsed > 0) {
+        setPaymentType("full");
+      }
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isFullyPaid || outstandingBalance <= 0) {
       setError("This policy is fully paid. No further payments can be added.");
@@ -97,8 +108,9 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
     }
 
     setSubmitting(true);
+    setError("");
     try {
-      onSavePayment({
+      await onSavePayment({
         recordId: record.id,
         paymentType,
         amount: numAmount,
@@ -107,6 +119,9 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
         remark,
       });
       onClose();
+    } catch (err: unknown) {
+      const errInfo = extractApiError(err, "Failed to record payment.");
+      setError(errInfo.message);
     } finally {
       setSubmitting(false);
     }
@@ -229,8 +244,9 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                 </div>
                 <input
                   type="number"
+                  step="0.01"
                   required
-                  min="1"
+                  min="0.01"
                   max={outstandingBalance}
                   value={amount}
                   onChange={(e) => handleAmountChange(e.target.value)}
@@ -356,7 +372,7 @@ export function RecordPaymentModal({
 
   return (
     <RecordPaymentDialog
-      key={`${record.id}-${record.balance ?? 0}`}
+      key={`${record.id}-${record.balance ?? record.outstanding ?? 0}`}
       record={record}
       onClose={onClose}
       onSavePayment={onSavePayment}
