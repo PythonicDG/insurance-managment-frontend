@@ -841,6 +841,7 @@ export const ledgerService = {
     page_size?: number;
     ordering?: string;
     summary_scope?: string;
+    paginate?: string | boolean;
   }): Promise<LedgerResponse> {
     const response = await apiClient.get<LedgerResponse>("/payments/ledger/", {
       params,

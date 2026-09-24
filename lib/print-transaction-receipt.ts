@@ -3,8 +3,9 @@ import {
   PaymentTransaction,
   BusinessSettings,
   CustomerDetailResponse,
+  LedgerRecord,
 } from "@/lib/api";
-import { formatDisplayDate } from "@/lib/date-utils";
+import { formatDisplayDate, formatLocalDateISO } from "@/lib/date-utils";
 
 /**
  * Convert a number to Indian currency words
@@ -1981,6 +1982,589 @@ export function printSingleInsuranceRecord({
 </html>`;
 
   printHtmlDocument(html, fileName);
+}
+
+export interface PrintOutstandingLedgerOptions {
+  records: LedgerRecord[];
+  settings?: BusinessSettings | null;
+  filters?: {
+    company?: string;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+    search?: string;
+  };
+  summary?: {
+    total_premium?: number;
+    total_received?: number;
+    total_outstanding?: number;
+    total_customers_pending?: number;
+  } | null;
+}
+
+/**
+ * Print or Save as PDF a professional Outstanding & Payment Ledger report
+ */
+export function printOutstandingLedgerReport({
+  records,
+  settings,
+  filters,
+  summary: externalSummary,
+}: PrintOutstandingLedgerOptions) {
+  const agencyName = settings?.business_name || "INSURANCE MANAGEMENT SERVICES";
+  const agencyPhone = settings?.phone || "";
+  const agencyEmail = settings?.email || "";
+  const agencyAddress = settings?.address || "";
+  const agencyLogo = settings?.logo_url || settings?.logo || "";
+
+  const generatedDate = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  // Calculate totals from records if not provided
+  const totalPremium =
+    externalSummary?.total_premium !== undefined
+      ? externalSummary.total_premium
+      : records.reduce((sum, r) => {
+          const val = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+          return sum + val;
+        }, 0);
+
+  const totalPaid =
+    externalSummary?.total_received !== undefined
+      ? externalSummary.total_received
+      : records.reduce((sum, r) => {
+          const val = typeof r.paid_amount === "number" ? r.paid_amount : parseFloat(String(r.paid_amount || 0)) || 0;
+          return sum + val;
+        }, 0);
+
+  const totalOutstanding =
+    externalSummary?.total_outstanding !== undefined
+      ? externalSummary.total_outstanding
+      : records.reduce((sum, r) => {
+          const val = typeof r.outstanding === "number" ? r.outstanding : parseFloat(String(r.outstanding || 0)) || 0;
+          return sum + val;
+        }, 0);
+
+  const pendingCustomers =
+    externalSummary?.total_customers_pending !== undefined
+      ? externalSummary.total_customers_pending
+      : new Set(records.filter((r) => {
+          const out = typeof r.outstanding === "number" ? r.outstanding : parseFloat(String(r.outstanding || 0)) || 0;
+          return out > 0;
+        }).map((r) => r.customer_id || r.customer_name)).size;
+
+  // Filter chips
+  const filterBadges: string[] = [];
+  if (filters?.company && filters.company !== "all" && filters.company !== "All companies") {
+    filterBadges.push(`Company: ${filters.company}`);
+  }
+  if (filters?.status) {
+    let statusLabel = filters.status;
+    if (statusLabel === "outstanding_partial") statusLabel = "Outstanding & Partial";
+    else if (statusLabel === "outstanding") statusLabel = "Outstanding Only";
+    else if (statusLabel === "partial") statusLabel = "Partial Only";
+    else if (statusLabel === "paid") statusLabel = "Paid";
+    else if (statusLabel === "all") statusLabel = "All Statuses";
+    filterBadges.push(`Status: ${statusLabel}`);
+  }
+  if (filters?.fromDate || filters?.toDate) {
+    const fDate = filters.fromDate ? formatDisplayDate(filters.fromDate) : "Earliest";
+    const tDate = filters.toDate ? formatDisplayDate(filters.toDate) : "Present";
+    filterBadges.push(`Date Range: ${fDate} to ${tDate}`);
+  }
+  if (filters?.search && filters.search.trim()) {
+    filterBadges.push(`Search: "${filters.search.trim()}"`);
+  }
+
+  const formatPhoneVal = (phone?: string) => {
+    if (!phone) return "—";
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length === 10) {
+      return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+    }
+    if (cleaned.length === 12 && cleaned.startsWith("91")) {
+      return `+91 ${cleaned.slice(2, 7)} ${cleaned.slice(7)}`;
+    }
+    return phone;
+  };
+
+  const rowsHtml =
+    records.length === 0
+      ? `<tr><td colspan="10" class="empty-state">No outstanding or ledger entries match your filter criteria.</td></tr>`
+      : records
+          .map((r, idx) => {
+            const prem = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+            const paid = typeof r.paid_amount === "number" ? r.paid_amount : parseFloat(String(r.paid_amount || 0)) || 0;
+            const out = typeof r.outstanding === "number" ? r.outstanding : parseFloat(String(r.outstanding || 0)) || 0;
+
+            const isPaid = r.status === "Paid" || out <= 0;
+            const isPartial = r.status === "Partial" || (paid > 0 && out > 0);
+            const statusClass = isPaid ? "badge-paid" : isPartial ? "badge-partial" : "badge-out";
+            const statusText = isPaid ? "Paid" : isPartial ? "Partial" : "Outstanding";
+
+            const altPhone = r.customer_alternative_mobile_number || r.alternative_mobile_number;
+
+            return `
+            <tr>
+              <td class="col-center text-muted">${idx + 1}</td>
+              <td class="font-bold text-dark">${escapeHtml(r.customer_name || "—")}</td>
+              <td>
+                <div class="font-mono text-dark">${formatPhoneVal(r.customer_phone)}</div>
+                ${altPhone ? `<div style="font-size: 9px; color: #64748b;">Alt: ${formatPhoneVal(altPhone)}</div>` : ""}
+              </td>
+              <td>
+                <span class="badge-plate font-mono">${escapeHtml(r.vehicle_number || "—")}</span>
+              </td>
+              <td class="text-dark font-medium">${escapeHtml(r.insurance_company_name || "—")}</td>
+              <td class="font-mono text-muted">${escapeHtml(r.policy_number || "—")}</td>
+              <td class="col-right font-medium text-dark">${formatCurrency(prem)}</td>
+              <td class="col-right font-medium text-green">${formatCurrency(paid)}</td>
+              <td class="col-right font-bold text-red">${formatCurrency(out)}</td>
+              <td class="col-center">
+                <span class="status-badge ${statusClass}">${statusText}</span>
+              </td>
+            </tr>`;
+          })
+          .join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Outstanding &amp; Ledger Report - ${generatedDate}</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 11px;
+      color: #0f172a;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    /* Container */
+    .document-container {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2.5px solid #2563eb;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .header-table td {
+      vertical-align: top;
+    }
+    .agency-logo {
+      max-height: 48px;
+      max-width: 150px;
+      object-fit: contain;
+      margin-bottom: 4px;
+    }
+    .agency-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1e3a8a;
+      letter-spacing: -0.3px;
+      margin: 0 0 2px 0;
+      text-transform: uppercase;
+    }
+    .agency-info {
+      font-size: 10px;
+      color: #475569;
+      line-height: 1.35;
+      margin: 0;
+    }
+    .doc-meta {
+      text-align: right;
+    }
+    .doc-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+      margin: 0 0 3px 0;
+      text-transform: uppercase;
+    }
+    .doc-subtitle {
+      font-size: 10.5px;
+      color: #64748b;
+      margin: 0 0 5px 0;
+      font-weight: 500;
+    }
+    .doc-meta-text {
+      font-size: 9.5px;
+      color: #64748b;
+      margin: 1px 0;
+    }
+    .doc-meta-text strong {
+      color: #0f172a;
+    }
+
+    /* Filter Chips */
+    .filter-chips {
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 2.5px 8px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+    }
+
+    /* KPI Cards */
+    .metrics-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 8px 0;
+      margin-bottom: 12px;
+    }
+    .metric-cell {
+      width: 25%;
+      border-radius: 8px;
+      padding: 8px 12px;
+      vertical-align: middle;
+    }
+    .metric-blue {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+    }
+    .metric-green {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+    }
+    .metric-red {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+    }
+    .metric-slate {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+    }
+    .metric-title {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .metric-blue .metric-title { color: #1e40af; }
+    .metric-green .metric-title { color: #047857; }
+    .metric-red .metric-title { color: #b91c1c; }
+    .metric-slate .metric-title { color: #475569; }
+
+    .metric-amount {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .metric-blue .metric-amount { color: #1e3a8a; }
+    .metric-green .metric-amount { color: #059669; }
+    .metric-red .metric-amount { color: #dc2626; }
+    .metric-slate .metric-amount { color: #0f172a; }
+
+    /* Ledger Table */
+    .table-container {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    table.report-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+    thead {
+      display: table-header-group;
+    }
+    thead th {
+      background-color: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 7px;
+      text-align: left;
+      border-bottom: 2px solid #94a3b8;
+      border-right: 1px solid #cbd5e1;
+      white-space: nowrap;
+    }
+    thead th:last-child {
+      border-right: none;
+    }
+    tbody tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    tbody tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+    tbody td {
+      padding: 7px 7px;
+      vertical-align: middle;
+      border-bottom: 1px solid #e2e8f0;
+      border-right: 1px solid #e2e8f0;
+      font-size: 10.5px;
+    }
+    tbody td:last-child {
+      border-right: none;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    tfoot tr td {
+      background: #f8fafc;
+      font-weight: 800;
+      border-top: 2px solid #cbd5e1;
+      padding: 8px 7px;
+      font-size: 11px;
+    }
+
+    .col-center { text-align: center; }
+    .col-right { text-align: right; }
+    .font-bold { font-weight: 700; }
+    .font-medium { font-weight: 600; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; }
+    .text-muted { color: #64748b; }
+    .text-dark { color: #0f172a; }
+    .text-green { color: #059669; }
+    .text-red { color: #dc2626; }
+
+    .badge-plate {
+      display: inline-block;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+      padding: 1.5px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .badge-paid {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+    .badge-partial {
+      background: #fffbeb;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .badge-out {
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 24px 10px;
+      color: #64748b;
+      font-style: italic;
+    }
+
+    /* Summary Bar */
+    .summary-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 20px;
+      padding: 9px 14px;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 11px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin-bottom: 12px;
+    }
+    .summary-item strong {
+      color: #0f172a;
+      font-weight: 700;
+    }
+    .summary-item .sum-red {
+      color: #dc2626;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .summary-item .sum-green {
+      color: #059669;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    /* Footer Note */
+    .footer-note {
+      text-align: center;
+      font-size: 8.5px;
+      color: #64748b;
+      padding-top: 6px;
+      border-top: 1px solid #e2e8f0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+  </style>
+</head>
+<body>
+  <div class="document-container">
+    <!-- Header -->
+    <table class="header-table">
+      <tr>
+        <td style="width: 55%;">
+          ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Agency Logo" class="agency-logo" /><br />` : ""}
+          <h1 class="agency-name">${escapeHtml(agencyName)}</h1>
+          <p class="agency-info">
+            ${agencyAddress ? `${escapeHtml(agencyAddress)}<br />` : ""}
+            ${agencyPhone ? `<strong>Phone:</strong> ${escapeHtml(agencyPhone)} &nbsp;&bull;&nbsp; ` : ""}
+            ${agencyEmail ? `<strong>Email:</strong> ${escapeHtml(agencyEmail)}` : ""}
+          </p>
+        </td>
+        <td style="width: 45%;" class="doc-meta">
+          <div class="doc-title">Outstanding Ledger Report</div>
+          <div class="doc-subtitle">Customer Balances &amp; Pending Premium Register</div>
+          <div class="doc-meta-text">Report Date: <strong>${generatedDate}</strong></div>
+          <div class="doc-meta-text">Total Listed Policies: <strong>${records.length}</strong></div>
+          <div class="doc-meta-text">Total Pending Accounts: <strong>${pendingCustomers}</strong></div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Filter Chips -->
+    ${
+      filterBadges.length > 0
+        ? `<div class="filter-chips">${filterBadges.map((b) => `<span class="chip">${escapeHtml(b)}</span>`).join("")}</div>`
+        : ""
+    }
+
+    <!-- Financial KPI Summary Cards -->
+    <table class="metrics-table">
+      <tr>
+        <td class="metric-cell metric-blue">
+          <div class="metric-title">Total Premium</div>
+          <div class="metric-amount">${formatCurrency(totalPremium)}</div>
+        </td>
+        <td class="metric-cell metric-green">
+          <div class="metric-title">Total Received</div>
+          <div class="metric-amount">${formatCurrency(totalPaid)}</div>
+        </td>
+        <td class="metric-cell metric-red">
+          <div class="metric-title">Total Outstanding</div>
+          <div class="metric-amount">${formatCurrency(totalOutstanding)}</div>
+        </td>
+        <td class="metric-cell metric-slate">
+          <div class="metric-title">Pending Accounts</div>
+          <div class="metric-amount">${pendingCustomers} Customers</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Ledger Table -->
+    <div class="table-container">
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th style="width: 3%; text-align: center;">#</th>
+            <th style="width: 17%;">Customer Name</th>
+            <th style="width: 13%;">Phone</th>
+            <th style="width: 11%;">Vehicle Number</th>
+            <th style="width: 13%;">Insurance Company</th>
+            <th style="width: 11%;">Policy Number</th>
+            <th style="width: 10%; text-align: right;">Total Premium</th>
+            <th style="width: 9%; text-align: right;">Paid Amount</th>
+            <th style="width: 9%; text-align: right;">Outstanding</th>
+            <th style="width: 4%; text-align: center;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+        ${
+          records.length > 0
+            ? `<tfoot>
+                <tr>
+                  <td colspan="6" style="text-align: right;">Total Summary (${records.length} Policies):</td>
+                  <td style="text-align: right; color: #0f172a;">${formatCurrency(totalPremium)}</td>
+                  <td style="text-align: right; color: #059669;">${formatCurrency(totalPaid)}</td>
+                  <td style="text-align: right; color: #dc2626;">${formatCurrency(totalOutstanding)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>`
+            : ""
+        }
+      </table>
+    </div>
+
+    <!-- Summary Bar -->
+    <div class="summary-bar">
+      <div class="summary-item">Total Listed Records: <strong>${records.length}</strong></div>
+      <div class="summary-item">Total Premium: <strong>${formatCurrency(totalPremium)}</strong></div>
+      <div class="summary-item">Total Received: <span class="sum-green">${formatCurrency(totalPaid)}</span></div>
+      <div class="summary-item">Total Outstanding: <span class="sum-red">${formatCurrency(totalOutstanding)}</span></div>
+    </div>
+
+    <div class="footer-note">
+      Official Outstanding &amp; Recovery Ledger Statement &bull; Generated from ${escapeHtml(agencyName)} &bull; ${generatedDate}
+    </div>
+  </div>
+</body>
+</html>`;
+
+  // Sanitized filename deduction for Chromium Save as PDF dialog
+  const dateStr = formatLocalDateISO(new Date());
+  const parts = ["Outstanding_Ledger_Report"];
+  if (filters?.company && filters.company !== "all" && filters.company !== "All companies") {
+    parts.push(sanitizeFileName(filters.company));
+  }
+  if (filters?.status && filters.status !== "all") {
+    parts.push(sanitizeFileName(filters.status));
+  }
+  if (filters?.search && filters.search.trim()) {
+    parts.push(sanitizeFileName(filters.search.trim()));
+  }
+  parts.push(dateStr);
+  const pdfFileName = parts.join("_");
+
+  printHtmlDocument(html, pdfFileName);
 }
 
 function escapeHtml(text?: string | number | null): string {

@@ -9,6 +9,8 @@ import {
   RotateCcw,
   Loader2,
   FileSpreadsheet,
+  FileText,
+  Printer,
   AlertCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -16,8 +18,10 @@ import {
   LedgerRecord,
   LedgerSummary,
   InsuranceCompany,
+  BusinessSettings,
   companyService,
   ledgerService,
+  settingsService,
 } from "@/lib/api";
 import { LedgerKpiCards, formatINR } from "@/components/ledger/ledger-kpi-cards";
 import { DateRangePopover } from "@/components/ledger/date-range-popover";
@@ -25,6 +29,7 @@ import { LedgerUpdatePaymentModal } from "@/components/ledger/ledger-update-paym
 import { LedgerRecordDetailModal } from "@/components/ledger/ledger-record-detail-modal";
 import { Toast, ToastType } from "@/components/ui/toast";
 import { formatLocalDateISO } from "@/lib/date-utils";
+import { printOutstandingLedgerReport } from "@/lib/print-transaction-receipt";
 
 export default function OutstandingLedgerPage() {
   // Data states
@@ -55,6 +60,10 @@ export default function OutstandingLedgerPage() {
   const [selectedRecordForPayment, setSelectedRecordForPayment] = useState<LedgerRecord | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
+  // Agency settings for PDF / print branding
+  const [agencySettings, setAgencySettings] = useState<BusinessSettings | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+
   // Toast feedback
   const [toast, setToast] = useState<{
     open: boolean;
@@ -72,12 +81,17 @@ export default function OutstandingLedgerPage() {
     setToast({ open: true, type, title, message });
   };
 
-  // Fetch active companies on mount
+  // Fetch active companies & agency settings on mount
   useEffect(() => {
     companyService
       .getAll({ is_active: true })
       .then((data) => setCompanies(data || []))
       .catch(() => setCompanies([]));
+
+    settingsService
+      .get()
+      .then((data) => setAgencySettings(data))
+      .catch(() => setAgencySettings(null));
   }, []);
 
   // Fetch ledger records & summary
@@ -164,10 +178,33 @@ export default function OutstandingLedgerPage() {
   };
 
   // Export CSV helper
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to export.");
       return;
+    }
+
+    let recordsToExport = records;
+
+    if (totalCount > records.length) {
+      try {
+        showToast("info", "Preparing Export", "Loading all records for CSV export...");
+        const params: Record<string, string | number | boolean> = {
+          paginate: "false",
+        };
+        if (searchQuery.trim()) params.search = searchQuery.trim();
+        if (selectedCompany !== "all") params.insurance_company_id = selectedCompany;
+        if (selectedStatus !== "all") params.payment_status = selectedStatus;
+        if (fromDate.trim()) params.date_from = fromDate.trim();
+        if (toDate.trim()) params.date_to = toDate.trim();
+
+        const res = await ledgerService.getLedger(params);
+        if (res && Array.isArray(res.results)) {
+          recordsToExport = res.results;
+        }
+      } catch (err) {
+        console.error("Failed to load all records for CSV, exporting current page", err);
+      }
     }
 
     const headers = [
@@ -175,24 +212,27 @@ export default function OutstandingLedgerPage() {
       "Phone",
       "Vehicle Number",
       "Insurance Company",
+      "Policy Number",
       "Total Premium",
       "Paid Amount",
       "Outstanding",
       "Status",
     ];
 
-    const rows = records.map((r) => [
-      `"${r.customer_name}"`,
-      `"${r.customer_phone}"`,
-      `"${r.vehicle_number}"`,
-      `"${r.insurance_company_name}"`,
+    const rows = recordsToExport.map((r) => [
+      `"${r.customer_name || ""}"`,
+      `"${r.customer_phone || ""}"`,
+      `"${r.vehicle_number || ""}"`,
+      `"${r.insurance_company_name || ""}"`,
+      `"${r.policy_number || ""}"`,
       r.total_premium,
       r.paid_amount,
       r.outstanding,
       r.status,
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const csvContent =
+      "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -200,7 +240,63 @@ export default function OutstandingLedgerPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast("success", "Export Ready", "Outstanding records exported as CSV.");
+    showToast("success", "Export Ready", `Exported ${recordsToExport.length} outstanding records as CSV.`);
+  };
+
+  // Save as PDF / Print All Handler
+  const handlePrint = async () => {
+    if (records.length === 0) {
+      showToast("info", "No records", "There are no records to print.");
+      return;
+    }
+
+    let recordsToPrint = records;
+
+    // If total records exceed current page, fetch all matching records for the complete PDF
+    if (totalCount > records.length) {
+      try {
+        setIsPrinting(true);
+        showToast("info", "Preparing Report", "Loading all filtered records for PDF...");
+        const params: Record<string, string | number | boolean> = {
+          paginate: "false",
+        };
+        if (searchQuery.trim()) params.search = searchQuery.trim();
+        if (selectedCompany !== "all") {
+          params.insurance_company_id = selectedCompany;
+        }
+        if (selectedStatus !== "all") {
+          params.payment_status = selectedStatus;
+        }
+        if (fromDate.trim()) params.date_from = fromDate.trim();
+        if (toDate.trim()) params.date_to = toDate.trim();
+
+        const res = await ledgerService.getLedger(params);
+        if (res && Array.isArray(res.results)) {
+          recordsToPrint = res.results;
+        }
+      } catch (err) {
+        console.error("Failed to load all records for PDF, falling back to current page", err);
+        showToast("error", "Notice", "Could not fetch all records, printing current page.");
+      } finally {
+        setIsPrinting(false);
+      }
+    }
+
+    const companyObj = companies.find((c) => String(c.id) === String(selectedCompany));
+    const companyName = companyObj ? companyObj.name : selectedCompany !== "all" ? selectedCompany : undefined;
+
+    printOutstandingLedgerReport({
+      records: recordsToPrint,
+      settings: agencySettings,
+      filters: {
+        company: companyName,
+        status: selectedStatus,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        search: searchQuery.trim() || undefined,
+      },
+      summary: summary,
+    });
   };
 
   const startRecord = (currentPage - 1) * pageSize + 1;
@@ -286,18 +382,18 @@ export default function OutstandingLedgerPage() {
           </div>
         </div>
 
-        {/* Auto-calculated helper note matching Figma */}
-        <div className="flex items-center justify-between px-1">
+        {/* Action Bar matching Insurance Records tab */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
           <p className="text-xs text-slate-500 font-normal">
             Outstanding = Total Premium − Paid Amount, auto-calculated.
           </p>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center flex-wrap gap-2">
             {(fromDate || toDate || selectedCompany !== "all" || selectedStatus !== "outstanding_partial" || searchQuery) && (
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-xs font-semibold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1 cursor-pointer"
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1 mr-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Reset Filters</span>
@@ -307,11 +403,37 @@ export default function OutstandingLedgerPage() {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="text-xs font-semibold text-slate-600 hover:text-blue-600 inline-flex items-center gap-1 cursor-pointer"
-              title="Export filtered records"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs"
+              title="Export filtered records as CSV"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export CSV</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
+              <span>Export CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={isPrinting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Save filtered records as professional PDF"
+            >
+              {isPrinting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+              ) : (
+                <FileText className="w-3.5 h-3.5 text-blue-600" />
+              )}
+              <span>Save as PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={isPrinting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Print All filtered records"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600" />
+              <span>Print All</span>
             </button>
           </div>
         </div>

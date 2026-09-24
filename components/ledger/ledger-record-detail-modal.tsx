@@ -12,8 +12,18 @@ import {
   Loader2,
   Clock,
   ArrowDownRight,
+  Printer,
 } from "lucide-react";
-import { LedgerRecord, PaymentTransaction, ledgerService, paymentService } from "@/lib/api";
+import {
+  LedgerRecord,
+  PaymentTransaction,
+  InsuranceRecordItem,
+  BusinessSettings,
+  ledgerService,
+  paymentService,
+  settingsService,
+} from "@/lib/api";
+import { printTransactionStatement } from "@/lib/print-transaction-receipt";
 
 interface LedgerRecordDetailModalProps {
   isOpen: boolean;
@@ -30,6 +40,16 @@ export function LedgerRecordDetailModal({
 }: LedgerRecordDetailModalProps) {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [agencySettings, setAgencySettings] = useState<BusinessSettings | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      settingsService
+        .get()
+        .then((data) => setAgencySettings(data))
+        .catch(() => setAgencySettings(null));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && record) {
@@ -118,6 +138,49 @@ export function LedgerRecordDetailModal({
     );
   };
 
+  const handlePrintStatement = () => {
+    if (!record) return;
+    const recordItem: InsuranceRecordItem = {
+      id: record.id,
+      policy_number: record.policy_number,
+      total_premium: totalPremium,
+      paid_amount: paidAmount,
+      total_paid: paidAmount,
+      outstanding: outstanding,
+      balance: outstanding,
+      entry_date: record.entry_date,
+      policy_start_date: record.policy_start_date,
+      policy_expiry_date: record.policy_expiry_date,
+      customer: {
+        id: record.customer_id,
+        name: record.customer_name,
+        phone: record.customer_phone,
+        alternative_mobile_number: record.customer_alternative_mobile_number || record.alternative_mobile_number,
+        address: "",
+      },
+      vehicle: {
+        id: record.vehicle_id,
+        vehicle_number: record.vehicle_number,
+        vehicle_type: record.vehicle_type,
+      },
+      insurance_company: {
+        id: record.insurance_company_id,
+        name: record.insurance_company_name,
+      },
+      is_active: true,
+      payments: payments,
+      transactions: payments,
+    } as unknown as InsuranceRecordItem;
+
+    printTransactionStatement({
+      record: recordItem,
+      transactions: payments,
+      settings: agencySettings,
+      totalPaid: paidAmount,
+      balance: outstanding,
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden">
@@ -136,13 +199,23 @@ export function LedgerRecordDetailModal({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrintStatement}
+              className="p-1.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Print or Save Statement as PDF"
+            >
+              <Printer className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Content */}
@@ -317,6 +390,15 @@ export function LedgerRecordDetailModal({
             Entry Date: <span className="font-medium text-slate-700">{formatDate(record.entry_date)}</span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrintStatement}
+              className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+              title="Print or Save Statement as PDF"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600" />
+              <span>Print Statement</span>
+            </button>
             <button
               type="button"
               onClick={onClose}
