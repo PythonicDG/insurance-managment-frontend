@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Printer,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import {
   InsuranceRecordItem,
@@ -23,7 +24,9 @@ import {
   paymentService,
   insuranceRecordService,
   settingsService,
+  whatsAppService,
 } from "@/lib/api";
+
 import { formatDisplayDate } from "@/lib/date-utils";
 import {
   printTransactionStatement,
@@ -181,6 +184,56 @@ export function InsuranceRecordDetail({
     };
   }, [record.id, record, totalPremium]);
 
+  // WhatsApp sending states
+
+  const [sendingWhatsAppPolicy, setSendingWhatsAppPolicy] = useState(false);
+  const [sendingPaymentId, setSendingPaymentId] = useState<number | string | null>(null);
+  const [waFeedback, setWaFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSendWhatsAppPolicy = async () => {
+    setSendingWhatsAppPolicy(true);
+    setWaFeedback(null);
+    try {
+      const res = await whatsAppService.sendPolicyWhatsApp(record.id);
+      if (res.success) {
+        setWaFeedback({ type: "success", text: "WhatsApp policy notification sent successfully!" });
+      } else {
+        setWaFeedback({ type: "error", text: res.message || "Failed to send WhatsApp message." });
+      }
+    } catch (err: unknown) {
+      const errorData = err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string; error?: string } } }).response?.data
+        : null;
+      const msg = errorData?.message || errorData?.error || "Error connecting to WhatsApp API.";
+      setWaFeedback({ type: "error", text: msg });
+    } finally {
+      setSendingWhatsAppPolicy(false);
+      setTimeout(() => setWaFeedback(null), 6000);
+    }
+  };
+
+  const handleSendWhatsAppPayment = async (tx: PaymentTransaction) => {
+    setSendingPaymentId(tx.id);
+    setWaFeedback(null);
+    try {
+      const res = await whatsAppService.sendPaymentWhatsApp(tx.id);
+      if (res.success) {
+        setWaFeedback({ type: "success", text: `WhatsApp receipt for RCP-${tx.id} sent successfully!` });
+      } else {
+        setWaFeedback({ type: "error", text: res.message || "Failed to send WhatsApp receipt." });
+      }
+    } catch (err: unknown) {
+      const errorData = err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string; error?: string } } }).response?.data
+        : null;
+      const msg = errorData?.message || errorData?.error || "Error connecting to WhatsApp API.";
+      setWaFeedback({ type: "error", text: msg });
+    } finally {
+      setSendingPaymentId(null);
+      setTimeout(() => setWaFeedback(null), 6000);
+    }
+  };
+
   const currentRecord: InsuranceRecordItem = {
     ...record,
     total_paid: paidAmount,
@@ -326,6 +379,21 @@ export function InsuranceRecordDetail({
 
             <button
               type="button"
+              onClick={handleSendWhatsAppPolicy}
+              disabled={sendingWhatsAppPolicy}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Send or resend policy notification to customer via WhatsApp"
+            >
+              {sendingWhatsAppPolicy ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+              )}
+              <span>Send WhatsApp</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handlePrintRecord}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 bg-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               title="Print or Save complete policy record voucher as PDF"
@@ -344,7 +412,28 @@ export function InsuranceRecordDetail({
             </button>
           </div>
         </div>
+
+        {/* WhatsApp Real-time Alert Banner */}
+        {waFeedback && (
+          <div
+            className={`mt-3 p-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
+              waFeedback.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-red-50 border-red-200 text-red-800"
+            }`}
+          >
+            <span>{waFeedback.text}</span>
+            <button
+              type="button"
+              onClick={() => setWaFeedback(null)}
+              className="text-xs opacity-70 hover:opacity-100 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
+
 
       {/* Card 1: Insurance Details */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
@@ -666,16 +755,34 @@ export function InsuranceRecordDetail({
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handlePrintSingleTransaction(tx)}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-slate-50 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                          title="Print individual payment voucher receipt"
-                        >
-                          <Printer className="w-3 h-3 text-blue-600" />
-                          <span>Receipt</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSendWhatsAppPayment(tx)}
+                            disabled={sendingPaymentId === tx.id}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                            title="Send WhatsApp receipt to customer"
+                          >
+                            {sendingPaymentId === tx.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <MessageSquare className="w-3 h-3 text-emerald-600" />
+                            )}
+                            <span>WhatsApp</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handlePrintSingleTransaction(tx)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-slate-50 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                            title="Print individual payment voucher receipt"
+                          >
+                            <Printer className="w-3 h-3 text-blue-600" />
+                            <span>Receipt</span>
+                          </button>
+                        </div>
                       </td>
+
                     </tr>
                   ))}
                 </tbody>

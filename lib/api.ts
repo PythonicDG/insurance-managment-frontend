@@ -867,5 +867,136 @@ export const ledgerService = {
   },
 };
 
+// WhatsApp Cloud API Integration
+export interface WhatsAppConfig {
+  id: number;
+  is_enabled: boolean;
+  test_mode: boolean;
+  test_phone_number: string;
+  phone_number_id: string;
+  waba_id: string;
+  access_token?: string;
+  has_access_token: boolean;
+  masked_token: string;
+  api_version: string;
+  default_country_code: string;
+  policy_template_name: string;
+  policy_template_language: string;
+  payment_template_name: string;
+  payment_template_language: string;
+  webhook_verify_token: string;
+  auto_send_policy_creation: boolean;
+  auto_send_payment_receipt: boolean;
+  updated_at: string;
+}
+
+export interface WhatsAppMessageLog {
+  id: number;
+  recipient_phone: string;
+  message_type: "POLICY_ISSUED" | "PAYMENT_RECEIPT" | "TEST" | "CUSTOM";
+  template_name: string;
+  parameters: Record<string, unknown>;
+  status: "queued" | "sent" | "delivered" | "read" | "failed";
+  wamid: string;
+  error_message: string;
+  is_test: boolean;
+  customer?: number | null;
+  customer_name?: string;
+  insurance_record?: number | null;
+  policy_number?: string;
+  vehicle_number?: string;
+  payment?: number | null;
+  formatted_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsAppTestPayload {
+  phone_number: string;
+  test_type: "direct_text" | "template_policy" | "template_payment";
+  custom_text?: string;
+}
+
+export interface WhatsAppLogsResponse {
+  count: number;
+  results: WhatsAppMessageLog[];
+}
+
+export const whatsAppService = {
+  async getConfig(): Promise<WhatsAppConfig> {
+    const response = await apiClient.get<WhatsAppConfig>("/whatsapp/config/");
+    return response.data;
+  },
+
+  async updateConfig(
+    data: Partial<WhatsAppConfig>
+  ): Promise<{ message: string; data: WhatsAppConfig }> {
+    const response = await apiClient.put<{ message: string; data: WhatsAppConfig }>(
+      "/whatsapp/config/",
+      data
+    );
+    return response.data;
+  },
+
+  async sendTestMessage(
+    payload: WhatsAppTestPayload
+  ): Promise<{ success: boolean; message: string; log: WhatsAppMessageLog }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      log: WhatsAppMessageLog;
+    }>("/whatsapp/send-test/", payload);
+    return response.data;
+  },
+
+  async getLogs(params?: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    message_type?: string;
+    search?: string;
+    is_test?: string | boolean;
+  }): Promise<WhatsAppLogsResponse> {
+    const response = await apiClient.get<WhatsAppLogsResponse>("/whatsapp/logs/", {
+      params,
+    });
+    return response.data;
+  },
+
+  async resendLog(
+    logId: number | string
+  ): Promise<{ success: boolean; message: string; log: WhatsAppMessageLog }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      log: WhatsAppMessageLog;
+    }>(`/whatsapp/logs/${logId}/resend/`);
+    return response.data;
+  },
+
+  async sendPolicyWhatsApp(
+    recordId: number | string
+  ): Promise<{ success: boolean; message: string; log: WhatsAppMessageLog }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      log: WhatsAppMessageLog;
+    }>(`/whatsapp/records/${recordId}/send/`);
+    return response.data;
+  },
+
+  async sendPaymentWhatsApp(
+    paymentId: number | string
+  ): Promise<{ success: boolean; message: string; log: WhatsAppMessageLog }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      log: WhatsAppMessageLog;
+    }>(`/whatsapp/payments/${paymentId}/send/`);
+    return response.data;
+  },
+};
+
+
 
 

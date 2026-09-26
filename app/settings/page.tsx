@@ -18,6 +18,7 @@ import {
   X,
   RefreshCw,
   SlidersHorizontal,
+  MessageSquare,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -30,9 +31,10 @@ import {
   UserProfile,
 } from "@/lib/api";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
+import { WhatsAppSettingsTab } from "@/components/settings/whatsapp-settings-tab";
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"companies" | "business" | "account">("companies");
+  const [activeTab, setActiveTab] = useState<"companies" | "business" | "account" | "whatsapp">("companies");
 
   // Insurance Companies state
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
@@ -403,7 +405,21 @@ export default function SettingsPage() {
             <ShieldCheck className="w-4 h-4" />
             <span>Account &amp; Security</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("whatsapp")}
+            className={`pb-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === "whatsapp"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>WhatsApp Meta API</span>
+          </button>
         </div>
+
 
         {/* ==================== TAB 1: INSURANCE COMPANIES ==================== */}
         {activeTab === "companies" && (
@@ -909,7 +925,13 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {/* ==================== TAB 4: WHATSAPP META API ==================== */}
+        {activeTab === "whatsapp" && (
+          <WhatsAppSettingsTab showToast={showToast} />
+        )}
       </div>
+
 
       {/* ==================== ADD COMPANY MODAL ==================== */}
       {isAddModalOpen && (

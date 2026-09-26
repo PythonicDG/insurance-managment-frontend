@@ -13,6 +13,7 @@ import {
   Clock,
   ArrowDownRight,
   Printer,
+  MessageSquare,
 } from "lucide-react";
 import {
   LedgerRecord,
@@ -22,7 +23,9 @@ import {
   ledgerService,
   paymentService,
   settingsService,
+  whatsAppService,
 } from "@/lib/api";
+
 import { printTransactionStatement } from "@/lib/print-transaction-receipt";
 
 interface LedgerRecordDetailModalProps {
@@ -73,6 +76,28 @@ export function LedgerRecordDetailModal({
         .finally(() => setLoadingPayments(false));
     }
   }, [isOpen, record]);
+
+  const [sendingPaymentId, setSendingPaymentId] = useState<number | string | null>(null);
+
+  const [waNotice, setWaNotice] = useState<string | null>(null);
+
+  const handleSendWhatsAppPayment = async (tx: PaymentTransaction) => {
+    setSendingPaymentId(tx.id);
+    setWaNotice(null);
+    try {
+      const res = await whatsAppService.sendPaymentWhatsApp(tx.id);
+      if (res.success) {
+        setWaNotice(`WhatsApp receipt sent for Payment #${tx.id}!`);
+      } else {
+        setWaNotice(`Failed to send WhatsApp: ${res.message}`);
+      }
+    } catch {
+      setWaNotice("Error connecting to WhatsApp API.");
+    } finally {
+      setSendingPaymentId(null);
+      setTimeout(() => setWaNotice(null), 5000);
+    }
+  };
 
   if (!isOpen || !record) return null;
 
@@ -338,14 +363,23 @@ export function LedgerRecordDetailModal({
                 )}
               </div>
             ) : (
-              <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-2xs">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="space-y-2">
+                {waNotice && (
+                  <div className="mb-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+                    <span>{waNotice}</span>
+                    <button type="button" onClick={() => setWaNotice(null)} className="opacity-70 hover:opacity-100">✕</button>
+                  </div>
+                )}
+                <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse">
+
                   <thead className="bg-slate-50/80 text-[11px] text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-200/80">
                     <tr>
                       <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3">Method</th>
                       <th className="py-2.5 px-3">Amount</th>
                       <th className="py-2.5 px-3">Notes / Ref</th>
+                      <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -374,13 +408,31 @@ export function LedgerRecordDetailModal({
                           <td className="py-2.5 px-3 text-slate-500 max-w-[180px] truncate" title={noteText}>
                             {noteText}
                           </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleSendWhatsAppPayment(tx)}
+                              disabled={sendingPaymentId === tx.id}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                              title="Send WhatsApp payment receipt"
+                            >
+                              {sendingPaymentId === tx.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <MessageSquare className="w-3 h-3 text-emerald-600" />
+                              )}
+                              <span>WhatsApp</span>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+            </div>
             )}
+
           </div>
         </div>
 
