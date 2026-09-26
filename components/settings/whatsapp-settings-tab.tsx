@@ -44,6 +44,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [apiVersion, setApiVersion] = useState("v21.0");
   const [defaultCountryCode, setDefaultCountryCode] = useState("91");
   const [policyTemplate, setPolicyTemplate] = useState("insurance_policy_issued");
   const [paymentTemplate, setPaymentTemplate] = useState("payment_receipt_collected");
@@ -78,6 +79,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
       setTestPhone(data.test_phone_number || "");
       setPhoneNumberId(data.phone_number_id || "");
       setWabaId(data.waba_id || "");
+      setApiVersion(data.api_version || "v21.0");
       setDefaultCountryCode(data.default_country_code || "91");
       setPolicyTemplate(data.policy_template_name || "insurance_policy_issued");
       setPaymentTemplate(data.payment_template_name || "payment_receipt_collected");
@@ -125,6 +127,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
         test_phone_number: testPhone.trim(),
         phone_number_id: phoneNumberId.trim(),
         waba_id: wabaId.trim(),
+        api_version: apiVersion.trim(),
         default_country_code: defaultCountryCode.trim(),
         policy_template_name: policyTemplate.trim(),
         payment_template_name: paymentTemplate.trim(),
@@ -427,7 +430,21 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Meta Graph API Version
+                  </label>
+                  <input
+                    type="text"
+                    value={apiVersion}
+                    onChange={(e) => setApiVersion(e.target.value)}
+                    placeholder="v21.0"
+                    className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">e.g. v21.0 or v22.0</p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Default Country Code
