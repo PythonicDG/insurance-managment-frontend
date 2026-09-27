@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { authService } from "@/lib/api";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -30,20 +31,36 @@ export function DashboardLayout({
   const [isAuthChecked, setIsAuthChecked] = useState(false);
 
   useEffect(() => {
-    // Check authentication: token must exist in sessionStorage (tied to browser tab)
-    if (typeof window !== "undefined") {
-      // Clean any legacy token from localStorage to prevent cross-session leakage
-      localStorage.removeItem("insure_token");
-      localStorage.removeItem("insure_user");
+    if (typeof window === "undefined") return;
 
-      const token = sessionStorage.getItem("insure_token");
-      if (!token) {
-        router.replace("/");
-        return;
-      }
+    // Clean any legacy tokens from localStorage to prevent cross-session leakage
+    localStorage.removeItem("insure_token");
+    localStorage.removeItem("insure_user");
 
+    const cachedUser = sessionStorage.getItem("insure_user");
+    const legacyToken = sessionStorage.getItem("insure_token");
+
+    // Fast-path: if session metadata already cached in this tab, render immediately
+    if (cachedUser || legacyToken) {
       setIsAuthChecked(true);
     }
+
+    // Verify active session with backend via HttpOnly cookie (or token fallback)
+    authService
+      .getProfile()
+      .then((user) => {
+        if (user) {
+          sessionStorage.setItem("insure_user", JSON.stringify(user));
+        }
+        setIsAuthChecked(true);
+      })
+      .catch(() => {
+        // If unauthenticated or session expired, redirect to login
+        sessionStorage.removeItem("insure_token");
+        sessionStorage.removeItem("insure_user");
+        sessionStorage.removeItem("insure_last_activity");
+        router.replace("/?reason=session_expired");
+      });
   }, [router]);
 
   // Prevent flash before auth check

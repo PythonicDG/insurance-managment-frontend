@@ -5,15 +5,16 @@ const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "")}
 export const apiClient = axios.create({
   baseURL: API_BASE,
   timeout: 10000,
+  withCredentials: true,
 });
 
-// Helper to get token (strictly sessionStorage for tab/window session lifecycle)
+// Helper to get token (strictly for legacy/fallback support if present)
 const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null;
   return sessionStorage.getItem("insure_token");
 };
 
-// Attach token to every outgoing request
+// Attach token to outgoing requests if present (backward compatibility fallback)
 apiClient.interceptors.request.use(
   (config) => {
     const token = getAuthToken();
@@ -31,7 +32,9 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       if (typeof window !== "undefined") {
-        const hadToken = Boolean(getAuthToken());
+        const hadSession = Boolean(
+          sessionStorage.getItem("insure_user") || getAuthToken()
+        );
         sessionStorage.removeItem("insure_token");
         sessionStorage.removeItem("insure_user");
         sessionStorage.removeItem("insure_last_activity");
@@ -39,7 +42,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem("insure_user");
         localStorage.removeItem("insure_last_activity");
 
-        if (hadToken && window.location.pathname !== "/") {
+        if (hadSession && window.location.pathname !== "/") {
           window.location.href = "/?reason=session_expired";
         }
       }
@@ -451,6 +454,16 @@ export const authService = {
     } catch {
       return null;
     }
+  },
+
+  isAuthenticated(): boolean {
+    if (typeof window === "undefined") return false;
+    return Boolean(sessionStorage.getItem("insure_user") || getAuthToken());
+  },
+
+  async getProfile(): Promise<UserProfile> {
+    const response = await apiClient.get<UserProfile>("/auth/profile/");
+    return response.data;
   },
 
   getToken(): string | null {

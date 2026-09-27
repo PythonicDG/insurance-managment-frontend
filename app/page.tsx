@@ -62,9 +62,10 @@ export default function LoginPage() {
         }
 
         const token = sessionStorage.getItem("insure_token");
+        const user = sessionStorage.getItem("insure_user");
 
         // Redirect to dashboard if authenticated in this tab
-        if (token && !reason) {
+        if ((token || user) && !reason) {
           router.replace("/dashboard");
         }
       } catch {
@@ -97,29 +98,31 @@ export default function LoginPage() {
         ? {
             email: trimmedUser,
             password: password,
+            remember_me: rememberMe,
           }
         : {
             username: trimmedUser,
             password: password,
+            remember_me: rememberMe,
           };
 
       const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`, payload, {
         headers: { "Content-Type": "application/json" },
+        withCredentials: true,
         timeout: 10000,
       });
 
       if (response && response.status === 200) {
         const data = response.data;
-        const token = data.token;
         const user = data.user;
 
-        // Persist token & user in sessionStorage so session is tied to the window/tab lifecycle.
-        // When user closes the window or tab, sessionStorage is cleared automatically.
+        // The auth token is securely stored in an HttpOnly cookie set by the server.
+        // It cannot be read or stolen by JavaScript or malicious extensions.
+        // Store only user profile metadata in sessionStorage for UI display.
         if (typeof window !== "undefined") {
-          if (token) {
-            sessionStorage.setItem("insure_token", token);
-            localStorage.removeItem("insure_token");
-          }
+          sessionStorage.removeItem("insure_token");
+          localStorage.removeItem("insure_token");
+
           if (user) {
             sessionStorage.setItem("insure_user", JSON.stringify(user));
             localStorage.removeItem("insure_user");

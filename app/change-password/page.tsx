@@ -7,12 +7,14 @@ export default function ChangePasswordRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    const token =
+    const hasSession =
       typeof window !== "undefined"
-        ? sessionStorage.getItem("insure_token") || localStorage.getItem("insure_token")
+        ? sessionStorage.getItem("insure_user") ||
+          sessionStorage.getItem("insure_token") ||
+          localStorage.getItem("insure_token")
         : null;
 
-    if (token) {
+    if (hasSession) {
       router.replace("/settings");
     } else {
       router.replace("/");
