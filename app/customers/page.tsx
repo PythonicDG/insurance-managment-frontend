@@ -18,6 +18,8 @@ import {
   Info,
   Sparkles,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,6 +33,10 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Quick Phone Lookup Tool State
   const [lookupPhone, setLookupPhone] = useState("");
@@ -215,6 +221,7 @@ export default function CustomersPage() {
       });
 
       setCustomers((prev) => [newCust, ...prev]);
+      setCurrentPage(1);
       showToast(
         "success",
         "Customer Created",
@@ -260,6 +267,38 @@ export default function CustomersPage() {
         String(c.customer_id || c.id).includes(term)
     );
   }, [customers, searchTerm]);
+
+  // Reset pagination to page 1 on search term or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
+
+  // Pagination calculations
+  const totalCount = filteredCustomers.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredCustomers.slice(start, start + pageSize);
+  }, [filteredCustomers, safeCurrentPage, pageSize]);
+
+  const startRecord = totalCount === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const endRecord = Math.min(safeCurrentPage * pageSize, totalCount);
+
+  // Dynamic pagination buttons list
+  const paginationPages = useMemo(() => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (safeCurrentPage <= 3) {
+      return [1, 2, 3, "...", totalPages];
+    }
+    if (safeCurrentPage >= totalPages - 2) {
+      return [1, "...", totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", safeCurrentPage, "...", totalPages];
+  }, [totalPages, safeCurrentPage]);
 
   return (
     <DashboardLayout title="Customer Management">
@@ -478,20 +517,21 @@ export default function CustomersPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
-                <thead className="bg-slate-50/80 text-slate-600 uppercase text-[10px] sm:text-xs font-semibold tracking-wider border-b border-slate-100">
-                  <tr>
-                    <th className="py-3 px-4 sm:px-6">Customer ID</th>
-                    <th className="py-3 px-4 sm:px-6">Name</th>
-                    <th className="py-3 px-4 sm:px-6">Phone Number</th>
-                    <th className="py-3 px-4 sm:px-6">Email &amp; Address</th>
-                    <th className="py-3 px-4 sm:px-6">Vehicles</th>
-                    <th className="py-3 px-4 sm:px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredCustomers.map((cust) => {
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50/80 text-slate-600 uppercase text-[10px] sm:text-xs font-semibold tracking-wider border-b border-slate-100">
+                    <tr>
+                      <th className="py-3 px-4 sm:px-6">Customer ID</th>
+                      <th className="py-3 px-4 sm:px-6">Name</th>
+                      <th className="py-3 px-4 sm:px-6">Phone Number</th>
+                      <th className="py-3 px-4 sm:px-6">Email &amp; Address</th>
+                      <th className="py-3 px-4 sm:px-6">Vehicles</th>
+                      <th className="py-3 px-4 sm:px-6 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedCustomers.map((cust) => {
                     const normPhone = (cust.phone || "").replace(/[\s\-\(\)\.]/g, "");
                     const isSharedPhone = (phoneCounts[normPhone] || 0) > 1;
 
@@ -596,7 +636,102 @@ export default function CustomersPage() {
                 </tbody>
               </table>
             </div>
-          )}
+
+            {/* Pagination Controls */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-slate-500">
+              <div className="flex flex-wrap items-center gap-3">
+                <p>
+                  {totalCount === 0 ? (
+                    <span>Showing 0 of 0 customers</span>
+                  ) : (
+                    <span>
+                      Showing{" "}
+                      <span className="font-semibold text-slate-800">
+                        {startRecord}-{endRecord}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-slate-800">
+                        {totalCount.toLocaleString("en-IN")}
+                      </span>{" "}
+                      customers
+                    </span>
+                  )}
+                </p>
+
+                {totalCount > 10 && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span className="text-slate-300">|</span>
+                    <span>Rows per page:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium cursor-pointer"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {totalPages > 1 && totalCount > 0 && (
+                <div className="flex items-center gap-1.5 self-end sm:self-auto select-none">
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg font-medium cursor-pointer transition-colors"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Previous</span>
+                  </button>
+
+                  {paginationPages.map((pageItem, idx) => {
+                    if (typeof pageItem === "number") {
+                      const isActive = pageItem === safeCurrentPage;
+                      return (
+                        <button
+                          key={`page-${pageItem}`}
+                          type="button"
+                          onClick={() => setCurrentPage(pageItem)}
+                          className={`w-7 h-7 rounded-lg font-semibold flex items-center justify-center cursor-pointer transition-colors ${
+                            isActive
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          {pageItem}
+                        </button>
+                      );
+                    }
+                    return (
+                      <span key={`dots-${idx}`} className="px-1 text-slate-400 select-none">
+                        ...
+                      </span>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent rounded-lg font-medium cursor-pointer transition-colors"
+                    title="Next page"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
         </div>
       </div>
 
