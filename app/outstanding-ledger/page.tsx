@@ -184,11 +184,29 @@ export default function OutstandingLedgerPage() {
     "export_csv" | "save_pdf" | "print_all" | null
   >(null);
 
-  const requestProtectedAction = (action: "export_csv" | "save_pdf" | "print_all") => {
+  const requestProtectedAction = async (action: "export_csv" | "save_pdf" | "print_all") => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to export or print.");
       return;
     }
+
+    try {
+      const settings = await settingsService.get();
+      if (!settings.is_export_pin_set) {
+        // PIN is not configured yet - directly execute without asking for PIN
+        if (action === "export_csv") {
+          executeExportCSV();
+        } else if (action === "save_pdf") {
+          executePrint("save_pdf");
+        } else if (action === "print_all") {
+          executePrint("print_all");
+        }
+        return;
+      }
+    } catch (err) {
+      console.warn("Could not check PIN configuration:", err);
+    }
+
     setPendingAction(action);
     setIsPinModalOpen(true);
   };

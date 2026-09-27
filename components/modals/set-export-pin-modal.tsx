@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from "react";
 import {
   ShieldCheck,
+  ShieldAlert,
   Mail,
-  KeyRound,
   Loader2,
   X,
   AlertCircle,
   CheckCircle2,
-  Lock,
+  Trash2,
   RefreshCw,
 } from "lucide-react";
 import { settingsService } from "@/lib/api";
@@ -20,6 +20,7 @@ interface SetExportPinModalProps {
   onSuccess: () => void;
   businessEmail: string;
   isCurrentlySet: boolean;
+  mode?: "set" | "remove";
 }
 
 export function SetExportPinModal({
@@ -28,6 +29,7 @@ export function SetExportPinModal({
   onSuccess,
   businessEmail,
   isCurrentlySet,
+  mode = "set",
 }: SetExportPinModalProps) {
   const [step, setStep] = useState<"request" | "verify">("request");
   const [otp, setOtp] = useState("");
@@ -38,6 +40,8 @@ export function SetExportPinModal({
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const isRemoveMode = mode === "remove";
 
   useEffect(() => {
     if (isOpen) {
@@ -113,6 +117,28 @@ export function SetExportPinModal({
       setErrorMessage("Please enter the 6-digit verification code from your email.");
       return;
     }
+
+    if (isRemoveMode) {
+      try {
+        setLoading(true);
+        const res = await settingsService.removeExportPin(otp.trim());
+        if (res.success) {
+          onSuccess();
+          onClose();
+        } else {
+          setErrorMessage(res.message || "Failed to remove PIN.");
+        }
+      } catch (err: any) {
+        setErrorMessage(
+          err?.response?.data?.message || err?.message || "Failed to remove PIN."
+        );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Set / Change mode
     if (!newPin.trim() || newPin.trim().length < 4 || newPin.trim().length > 8) {
       setErrorMessage("PIN must be between 4 and 8 digits.");
       return;
@@ -152,15 +178,29 @@ export function SetExportPinModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-6 py-5 text-white">
+        <div
+          className={`px-6 py-5 text-white ${
+            isRemoveMode
+              ? "bg-gradient-to-r from-rose-600 via-red-600 to-rose-700"
+              : "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
-                <ShieldCheck className="w-5 h-5 text-white" />
+                {isRemoveMode ? (
+                  <ShieldAlert className="w-5 h-5 text-white" />
+                ) : (
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                )}
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight">
-                  {isCurrentlySet ? "Change Export Security PIN" : "Set Export Security PIN"}
+                  {isRemoveMode
+                    ? "Remove Export Security PIN"
+                    : isCurrentlySet
+                    ? "Change Export Security PIN"
+                    : "Set Export Security PIN"}
                 </h3>
                 <p className="text-xs text-blue-100/90 mt-0.5">
                   Email OTP Authorization Required
@@ -199,7 +239,9 @@ export function SetExportPinModal({
                   {businessEmail || "No email configured"}
                 </p>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  To ensure only authorized administrators can configure or reset the PIN, a 6-digit one-time verification code will be dispatched to this email address.
+                  {isRemoveMode
+                    ? "To remove the Export Security PIN, a 6-digit one-time verification code will be sent to your email. Once removed, exports and print actions will no longer require a PIN."
+                    : "To ensure only authorized administrators can configure or reset the PIN, a 6-digit one-time verification code will be dispatched to this email address."}
                 </p>
               </div>
 
@@ -216,7 +258,11 @@ export function SetExportPinModal({
                   type="button"
                   onClick={handleRequestOtp}
                   disabled={loading || !businessEmail}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer disabled:opacity-50 min-h-[38px]"
+                  className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold text-white rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 min-h-[38px] ${
+                    isRemoveMode
+                      ? "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20"
+                      : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                  }`}
                 >
                   {loading ? (
                     <>
@@ -264,6 +310,7 @@ export function SetExportPinModal({
                   type="text"
                   maxLength={6}
                   required
+                  autoFocus
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   placeholder="Enter 6-digit code"
@@ -271,41 +318,52 @@ export function SetExportPinModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    New Security PIN <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    maxLength={8}
-                    required
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="4-8 digits"
-                    className="w-full px-3.5 py-2 text-sm text-center font-mono tracking-wider bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
+              {!isRemoveMode ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        New Security PIN <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={8}
+                        required
+                        value={newPin}
+                        onChange={(e) => setNewPin(e.target.value)}
+                        placeholder="4-8 digits"
+                        className="w-full px-3.5 py-2 text-sm text-center font-mono tracking-wider bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Confirm PIN <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    maxLength={8}
-                    required
-                    value={confirmPin}
-                    onChange={(e) => setConfirmPin(e.target.value)}
-                    placeholder="Re-enter PIN"
-                    className="w-full px-3.5 py-2 text-sm text-center font-mono tracking-wider bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Confirm PIN <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={8}
+                        required
+                        value={confirmPin}
+                        onChange={(e) => setConfirmPin(e.target.value)}
+                        placeholder="Re-enter PIN"
+                        className="w-full px-3.5 py-2 text-sm text-center font-mono tracking-wider bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
 
-              <p className="text-[11px] text-slate-400">
-                This PIN will be required anytime a user attempts to export CSVs or download/print records.
-              </p>
+                  <p className="text-[11px] text-slate-400">
+                    This PIN will be required anytime a user attempts to export CSVs or download/print records.
+                  </p>
+                </>
+              ) : (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-800 text-xs">
+                  <p className="font-semibold mb-0.5">Confirm PIN Removal</p>
+                  <p className="text-[11px] text-rose-600">
+                    Once removed, users will be able to export CSV files, save PDFs, and batch print records without entering a PIN.
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2.5 pt-2">
                 <button
@@ -318,13 +376,22 @@ export function SetExportPinModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !otp || !newPin || !confirmPin}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer disabled:opacity-50 min-h-[38px]"
+                  disabled={loading || !otp || (!isRemoveMode && (!newPin || !confirmPin))}
+                  className={`inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-semibold text-white rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 min-h-[38px] ${
+                    isRemoveMode
+                      ? "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20"
+                      : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                  }`}
                 >
                   {loading ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving PIN...</span>
+                      <span>{isRemoveMode ? "Removing PIN..." : "Saving PIN..."}</span>
+                    </>
+                  ) : isRemoveMode ? (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Verify &amp; Remove PIN</span>
                     </>
                   ) : (
                     <>

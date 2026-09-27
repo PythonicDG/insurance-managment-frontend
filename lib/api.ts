@@ -431,6 +431,14 @@ export const settingsService = {
     }>("/settings/pin/set/", payload);
     return response.data;
   },
+
+  async removeExportPin(otp: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+    }>("/settings/pin/remove/", { otp });
+    return response.data;
+  },
 };
 
 

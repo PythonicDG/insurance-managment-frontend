@@ -31,11 +31,25 @@ export function ExportPinModal({
       setPin("");
       setErrorMessage(null);
       setPinNotSet(false);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
+      settingsService
+        .get()
+        .then((settings) => {
+          if (!settings.is_export_pin_set) {
+            onClose();
+            onSuccess();
+          } else {
+            setTimeout(() => {
+              inputRef.current?.focus();
+            }, 100);
+          }
+        })
+        .catch(() => {
+          setTimeout(() => {
+            inputRef.current?.focus();
+          }, 100);
+        });
     }
-  }, [isOpen]);
+  }, [isOpen, onClose, onSuccess]);
 
   if (!isOpen) return null;
 
@@ -55,14 +69,18 @@ export function ExportPinModal({
         onSuccess();
       } else {
         if (res.pin_not_set) {
-          setPinNotSet(true);
+          onClose();
+          onSuccess();
+          return;
         }
         setErrorMessage(res.message || "Incorrect PIN. Please try again.");
       }
     } catch (err: any) {
       const respData = err?.response?.data;
       if (respData?.pin_not_set) {
-        setPinNotSet(true);
+        onClose();
+        onSuccess();
+        return;
       }
       setErrorMessage(
         respData?.message || err?.message || "Failed to verify PIN. Please try again."
