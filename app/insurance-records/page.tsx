@@ -27,6 +27,7 @@ import {
   companyService,
   insuranceRecordService,
   paymentService,
+  settingsService,
   InsuranceCompany,
   InsuranceRecordItem,
   PaymentTransaction,
@@ -43,6 +44,7 @@ import {
   printHtmlDocument,
   sanitizeFileName,
 } from "@/lib/print-transaction-receipt";
+import { ExportPinModal } from "@/components/modals/export-pin-modal";
 
 // Attach payments and calculate real paid/balance for a record
 function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordItem {
@@ -641,8 +643,35 @@ function InsuranceRecordsContent() {
     }
   };
 
+  // Export PIN Security state
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "export_csv" | "save_pdf" | "print_all" | null
+  >(null);
+
+  const requestProtectedAction = (action: "export_csv" | "save_pdf" | "print_all") => {
+    if (records.length === 0) {
+      showToast("info", "No records", "There are no records to export or print.");
+      return;
+    }
+    setPendingAction(action);
+    setIsPinModalOpen(true);
+  };
+
+  const handlePinSuccess = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === "export_csv") {
+      executeExportCSV();
+    } else if (action === "save_pdf") {
+      executePrint("save_pdf");
+    } else if (action === "print_all") {
+      executePrint("print_all");
+    }
+  };
+
   // Export CSV
-  const handleExportCSV = () => {
+  const executeExportCSV = () => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to export.");
       return;
@@ -713,6 +742,20 @@ function InsuranceRecordsContent() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     showToast("success", "Export Ready", "CSV file generated from current records.");
+
+    // Notify Business Email of the data download
+    settingsService.notifyExport({
+      action_type: "export_csv",
+      source_module: "insurance_records",
+      record_count: records.length,
+      filters: {
+        search: searchQuery.trim() || undefined,
+        company: selectedCompany !== "All Companies" ? selectedCompany : undefined,
+        status: selectedStatus !== "All Statuses" ? selectedStatus : undefined,
+        from_date: fromDate.trim() || undefined,
+        to_date: toDate.trim() || undefined,
+      },
+    });
   };
 
   // Print / Save as PDF Helper
@@ -1060,7 +1103,7 @@ function InsuranceRecordsContent() {
   };
 
   // Save as PDF / Print All Handler
-  const handlePrint = async () => {
+  const executePrint = async (actionType: "save_pdf" | "print_all" = "save_pdf") => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to print.");
       return;
@@ -1113,6 +1156,20 @@ function InsuranceRecordsContent() {
       fromDate,
       toDate,
       search: searchQuery,
+    });
+
+    // Notify Business Email of the PDF save / print action
+    settingsService.notifyExport({
+      action_type: actionType,
+      source_module: "insurance_records",
+      record_count: recordsToPrint.length,
+      filters: {
+        search: searchQuery.trim() || undefined,
+        company: selectedCompany !== "All Companies" ? selectedCompany : undefined,
+        status: selectedStatus !== "All Statuses" ? selectedStatus : undefined,
+        from_date: fromDate.trim() || undefined,
+        to_date: toDate.trim() || undefined,
+      },
     });
   };
 
@@ -1667,7 +1724,7 @@ function InsuranceRecordsContent() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleExportCSV}
+                onClick={() => requestProtectedAction("export_csv")}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
@@ -1676,7 +1733,7 @@ function InsuranceRecordsContent() {
 
               <button
                 type="button"
-                onClick={handlePrint}
+                onClick={() => requestProtectedAction("save_pdf")}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs"
               >
                 <FileText className="w-3.5 h-3.5 text-blue-600" />
@@ -1685,7 +1742,7 @@ function InsuranceRecordsContent() {
 
               <button
                 type="button"
-                onClick={handlePrint}
+                onClick={() => requestProtectedAction("print_all")}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs"
               >
                 <Printer className="w-3.5 h-3.5 text-blue-600" />
@@ -1982,6 +2039,23 @@ function InsuranceRecordsContent() {
           </div>
         </div>
       )}
+
+      <ExportPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => {
+          setIsPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={handlePinSuccess}
+        title="Export Authorization"
+        description={
+          pendingAction === "export_csv"
+            ? "Enter your Export Security PIN to download Insurance Records as CSV."
+            : pendingAction === "save_pdf"
+            ? "Enter your Export Security PIN to save Insurance Records as PDF."
+            : "Enter your Export Security PIN to print all Insurance Records."
+        }
+      />
     </DashboardLayout>
   );
 }

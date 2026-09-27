@@ -66,6 +66,7 @@ export interface BusinessSettings {
   phone: string;
   email: string;
   address: string;
+  is_export_pin_set?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -373,7 +374,65 @@ export const settingsService = {
     );
     return response.data;
   },
+
+  async notifyExport(payload: {
+    action_type: "export_csv" | "save_pdf" | "print_all";
+    source_module: "insurance_records" | "outstanding_ledger";
+    record_count: number;
+    filters?: Record<string, any>;
+  }): Promise<{ success: boolean; message: string; recipient?: string }> {
+    try {
+      const response = await apiClient.post<{
+        success: boolean;
+        message: string;
+        recipient?: string;
+      }>("/settings/notify-export/", payload);
+      return response.data;
+    } catch (err: any) {
+      console.warn("Export notification dispatch failed:", err?.message || err);
+      return { success: false, message: "Could not send export notification." };
+    }
+  },
+
+  async sendTestEmail(email?: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post<{ success: boolean; message: string }>(
+      "/settings/test-email/",
+      { email }
+    );
+    return response.data;
+  },
+
+  async verifyExportPin(pin: string): Promise<{ success: boolean; message: string; pin_not_set?: boolean }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      pin_not_set?: boolean;
+    }>("/settings/verify-export-pin/", { pin });
+    return response.data;
+  },
+
+  async requestPinOtp(): Promise<{ success: boolean; message: string; recipient?: string }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      recipient?: string;
+    }>("/settings/pin/request-otp/");
+    return response.data;
+  },
+
+  async setExportPin(payload: {
+    otp: string;
+    new_pin: string;
+    confirm_pin: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+    }>("/settings/pin/set/", payload);
+    return response.data;
+  },
 };
+
 
 export const authService = {
   getCurrentUser(): UserProfile | null {

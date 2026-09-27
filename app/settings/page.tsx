@@ -19,6 +19,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   MessageSquare,
+  Lock,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -31,6 +32,7 @@ import {
   UserProfile,
 } from "@/lib/api";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
+import { SetExportPinModal } from "@/components/modals/set-export-pin-modal";
 import { WhatsAppSettingsTab } from "@/components/settings/whatsapp-settings-tab";
 
 export default function SettingsPage() {
@@ -68,6 +70,9 @@ export default function SettingsPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [removingLogo, setRemovingLogo] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [isExportPinSet, setIsExportPinSet] = useState(false);
+  const [isSetPinModalOpen, setIsSetPinModalOpen] = useState(false);
 
   // Account state with lazy initialization
   const [currentUser] = useState<UserProfile | null>(() => {
@@ -128,6 +133,7 @@ export default function SettingsPage() {
       setBusinessEmail(data.email || "");
       setBusinessAddress(data.address || "");
       setLogoPreview(data.logo_url || null);
+      setIsExportPinSet(Boolean(data.is_export_pin_set));
     } catch {
       showToast("error", "Error loading settings", "Failed to load business settings.");
     } finally {
@@ -327,6 +333,30 @@ export default function SettingsPage() {
       showToast("error", "Error", "Failed to update business settings.");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!businessEmail || !businessEmail.trim()) {
+      showToast("error", "Email Required", "Please enter an email address in the field first.");
+      return;
+    }
+    try {
+      setTestingEmail(true);
+      const res = await settingsService.sendTestEmail(businessEmail.trim());
+      if (res.success) {
+        showToast("success", "Email Dispatched", res.message || "Test email sent successfully.");
+      } else {
+        showToast("error", "Email Failed", res.message || "Could not send test email.");
+      }
+    } catch (err: any) {
+      showToast(
+        "error",
+        "SMTP Error",
+        err?.response?.data?.message || err?.message || "Failed to send test email. Check .env configuration."
+      );
+    } finally {
+      setTestingEmail(false);
     }
   };
 
@@ -819,9 +849,29 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Email Address
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Email Address
+                      </label>
+                      {businessEmail && (
+                        <button
+                          type="button"
+                          onClick={handleTestEmail}
+                          disabled={testingEmail}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          title="Send a test email using Django SMTP settings in .env"
+                        >
+                          {testingEmail ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Testing SMTP...</span>
+                            </>
+                          ) : (
+                            <span>Send Test Email</span>
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="email"
                       value={businessEmail}
@@ -829,6 +879,12 @@ export default function SettingsPage() {
                       placeholder="e.g. info@agency.com"
                       className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     />
+                    <p className="text-[11px] text-slate-500 mt-1.5 flex items-start gap-1">
+                      <span className="text-amber-500 font-bold shrink-0">🔔</span>
+                      <span>
+                        <strong>Security &amp; Export Recipient:</strong> Audit notifications are sent to this address whenever a user downloads/exports CSV, saves PDF, or prints records.
+                      </span>
+                    </p>
                   </div>
 
                   <div className="sm:col-span-2">
@@ -864,6 +920,85 @@ export default function SettingsPage() {
                 </div>
               </form>
             )}
+
+            {/* Export Security PIN Protection Card */}
+            <div className="mt-8 pt-6 border-t border-slate-200/80">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/90 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                        isExportPinSet
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          : "bg-amber-50 text-amber-600 border-amber-200"
+                      }`}
+                    >
+                      <KeyRound className="w-5 h-5" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Bulk Export Security PIN
+                        </h4>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                            isExportPinSet
+                              ? "bg-emerald-100/70 text-emerald-800 border-emerald-200"
+                              : "bg-amber-100/70 text-amber-800 border-amber-200"
+                          }`}
+                        >
+                          {isExportPinSet ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Protection Active</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                              <span>Not Configured</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-500 max-w-xl leading-relaxed">
+                        {isExportPinSet
+                          ? "Users must enter this Security PIN before downloading CSVs, saving PDFs, or batch printing records. Setting or changing this PIN requires email verification."
+                          : "No Security PIN has been configured. Configure a PIN to restrict CSV downloads, PDF saves, and batch printing."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!businessEmail || !businessEmail.trim()) {
+                          showToast(
+                            "error",
+                            "Email Required",
+                            "Please enter and save a business email address before setting the Security PIN."
+                          );
+                          return;
+                        }
+                        setIsSetPinModalOpen(true);
+                      }}
+                      className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
+                        isExportPinSet
+                          ? "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200"
+                          : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20"
+                      }`}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>
+                        {isExportPinSet ? "Change / Reset PIN" : "Configure Security PIN"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1124,6 +1259,22 @@ export default function SettingsPage() {
       <ChangePasswordModal
         isOpen={isChangePasswordModalOpen}
         onClose={() => setIsChangePasswordModalOpen(false)}
+      />
+
+      {/* ==================== SET EXPORT PIN MODAL ==================== */}
+      <SetExportPinModal
+        isOpen={isSetPinModalOpen}
+        onClose={() => setIsSetPinModalOpen(false)}
+        onSuccess={() => {
+          showToast(
+            "success",
+            "Security PIN Updated",
+            "Your Export Security PIN has been updated successfully."
+          );
+          fetchSettings();
+        }}
+        businessEmail={businessEmail}
+        isCurrentlySet={isExportPinSet}
       />
     </DashboardLayout>
   );

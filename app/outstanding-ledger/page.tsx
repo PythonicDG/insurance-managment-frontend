@@ -30,6 +30,7 @@ import { LedgerRecordDetailModal } from "@/components/ledger/ledger-record-detai
 import { Toast, ToastType } from "@/components/ui/toast";
 import { formatLocalDateISO } from "@/lib/date-utils";
 import { printOutstandingLedgerReport } from "@/lib/print-transaction-receipt";
+import { ExportPinModal } from "@/components/modals/export-pin-modal";
 
 export default function OutstandingLedgerPage() {
   // Data states
@@ -177,8 +178,35 @@ export default function OutstandingLedgerPage() {
     setSearchQuery("");
   };
 
+  // Export PIN Security state
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "export_csv" | "save_pdf" | "print_all" | null
+  >(null);
+
+  const requestProtectedAction = (action: "export_csv" | "save_pdf" | "print_all") => {
+    if (records.length === 0) {
+      showToast("info", "No records", "There are no records to export or print.");
+      return;
+    }
+    setPendingAction(action);
+    setIsPinModalOpen(true);
+  };
+
+  const handlePinSuccess = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === "export_csv") {
+      executeExportCSV();
+    } else if (action === "save_pdf") {
+      executePrint("save_pdf");
+    } else if (action === "print_all") {
+      executePrint("print_all");
+    }
+  };
+
   // Export CSV helper
-  const handleExportCSV = async () => {
+  const executeExportCSV = async () => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to export.");
       return;
@@ -241,10 +269,24 @@ export default function OutstandingLedgerPage() {
     link.click();
     document.body.removeChild(link);
     showToast("success", "Export Ready", `Exported ${recordsToExport.length} outstanding records as CSV.`);
+
+    // Notify Business Email of the data download
+    settingsService.notifyExport({
+      action_type: "export_csv",
+      source_module: "outstanding_ledger",
+      record_count: recordsToExport.length,
+      filters: {
+        search: searchQuery.trim() || undefined,
+        company: selectedCompany !== "all" ? selectedCompany : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        date_from: fromDate.trim() || undefined,
+        date_to: toDate.trim() || undefined,
+      },
+    });
   };
 
   // Save as PDF / Print All Handler
-  const handlePrint = async () => {
+  const executePrint = async (actionType: "save_pdf" | "print_all" = "save_pdf") => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to print.");
       return;
@@ -296,6 +338,20 @@ export default function OutstandingLedgerPage() {
         search: searchQuery.trim() || undefined,
       },
       summary: summary,
+    });
+
+    // Notify Business Email of the PDF save / print action
+    settingsService.notifyExport({
+      action_type: actionType,
+      source_module: "outstanding_ledger",
+      record_count: recordsToPrint.length,
+      filters: {
+        search: searchQuery.trim() || undefined,
+        company: companyName,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        date_from: fromDate.trim() || undefined,
+        date_to: toDate.trim() || undefined,
+      },
     });
   };
 
@@ -402,7 +458,7 @@ export default function OutstandingLedgerPage() {
 
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={() => requestProtectedAction("export_csv")}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs"
               title="Export filtered records as CSV"
             >
@@ -412,7 +468,7 @@ export default function OutstandingLedgerPage() {
 
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={() => requestProtectedAction("save_pdf")}
               disabled={isPrinting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
               title="Save filtered records as professional PDF"
@@ -427,7 +483,7 @@ export default function OutstandingLedgerPage() {
 
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={() => requestProtectedAction("print_all")}
               disabled={isPrinting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-blue-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
               title="Print All filtered records"
@@ -709,6 +765,24 @@ export default function OutstandingLedgerPage() {
           setSelectedRecordForPayment(rec);
           setIsPaymentModalOpen(true);
         }}
+      />
+
+      {/* Export Security PIN Modal */}
+      <ExportPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => {
+          setIsPinModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={handlePinSuccess}
+        title="Export Authorization"
+        description={
+          pendingAction === "export_csv"
+            ? "Enter your Export Security PIN to download Outstanding Ledger records as CSV."
+            : pendingAction === "save_pdf"
+            ? "Enter your Export Security PIN to save Outstanding Ledger records as PDF."
+            : "Enter your Export Security PIN to print all Outstanding Ledger records."
+        }
       />
 
       {/* Toast Feedback */}
