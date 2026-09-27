@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { authService, UserProfile } from "@/lib/api";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
+import { NotificationPopover } from "@/components/layout/notification-popover";
+
 
 interface HeaderProps {
   title?: string;
@@ -101,15 +103,9 @@ export function Header({
           />
         </div>
 
-        {/* Notification Bell Icon */}
-        <button
-          type="button"
-          className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 transition-colors cursor-pointer"
-          title="Notifications"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full" />
-        </button>
+        {/* Notification Bell with Today's Expired Records Popover */}
+        <NotificationPopover />
+
 
         {/* User Profile Dropdown */}
         <div className="relative shrink-0" ref={dropdownRef}>

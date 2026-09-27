@@ -117,7 +117,9 @@ function InsuranceRecordsContent() {
     }
     return "All Statuses";
   });
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return searchParams.get("search") || searchParams.get("q") || "";
+  });
 
   // Sorting state
   const [sortField, setSortField] = useState<string>("entry_date");
@@ -366,6 +368,11 @@ function InsuranceRecordsContent() {
         setSelectedStatus("Expired");
         setCurrentPage(1);
       }
+    }
+    const searchParam = searchParams.get("search") || searchParams.get("q");
+    if (searchParam !== null) {
+      setSearchQuery(searchParam);
+      setCurrentPage(1);
     }
   }, [searchParams]);
 

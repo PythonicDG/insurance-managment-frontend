@@ -834,6 +834,32 @@ export interface BusinessSummaryResponse {
   business_summary: BusinessSummaryItem[];
 }
 
+export interface NotificationPolicyRecord {
+  id: number;
+  policy_number: string;
+  entry_date?: string;
+  policy_start_date?: string;
+  policy_expiry_date: string;
+  formatted_expiry_date: string;
+  days_left: number;
+  customer_name: string;
+  customer_phone?: string;
+  vehicle_number: string;
+  vehicle_type?: string;
+  insurance_company?: string;
+  total_premium: number;
+  paid_amount: number;
+  outstanding: number;
+  payment_status: "Paid" | "Partial" | "Outstanding" | string;
+  status: string;
+}
+
+export interface NotificationsResponse {
+  today: string;
+  count: number;
+  records: NotificationPolicyRecord[];
+}
+
 export const dashboardService = {
   async getSummary(params?: {
     months?: number;
@@ -862,7 +888,15 @@ export const dashboardService = {
     );
     return response.data.business_summary;
   },
+
+  async getNotifications(): Promise<NotificationsResponse> {
+    const response = await apiClient.get<NotificationsResponse>(
+      "/dashboard/notifications/"
+    );
+    return response.data;
+  },
 };
+
 
 export interface LedgerSummary {
   total_outstanding: number;
