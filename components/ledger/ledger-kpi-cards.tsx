@@ -21,17 +21,17 @@ export function formatINR(val: number | string | undefined | null): string {
 export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps) {
   if (loading || !summary) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs animate-pulse"
+            className="bg-white rounded-2xl p-3.5 sm:p-6 border border-slate-200/80 shadow-xs animate-pulse"
           >
             <div className="flex items-center justify-between">
-              <div className="h-3.5 bg-slate-200 rounded w-28" />
-              <div className="w-8 h-1.5 bg-slate-200 rounded-full" />
+              <div className="h-3.5 bg-slate-200 rounded w-16 sm:w-28" />
+              <div className="w-6 sm:w-8 h-1.5 bg-slate-200 rounded-full shrink-0" />
             </div>
-            <div className="h-8 bg-slate-200 rounded w-36 mt-4" />
+            <div className="h-6 sm:h-8 bg-slate-200 rounded w-20 sm:w-36 mt-3 sm:mt-4" />
           </div>
         ))}
       </div>
@@ -66,23 +66,23 @@ export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
       {cards.map((card, idx) => (
         <div
           key={idx}
-          className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all duration-200 flex flex-col justify-between"
+          className="bg-white rounded-2xl p-3.5 sm:p-6 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all duration-200 flex flex-col justify-between"
         >
           {/* Top row: Title and Pill Indicator */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-[13px] font-medium text-slate-500 tracking-tight">
+          <div className="flex items-center justify-between gap-1.5">
+            <span className="text-xs sm:text-[13px] font-medium text-slate-500 tracking-tight leading-tight line-clamp-2">
               {card.title}
             </span>
-            <div className={`w-8 h-1.5 rounded-full ${card.indicatorColor} shrink-0`} />
+            <div className={`w-6 sm:w-8 h-1.5 rounded-full ${card.indicatorColor} shrink-0`} />
           </div>
 
           {/* Bottom row: Value */}
-          <div className="mt-4 sm:mt-5">
-            <div className={`text-2xl sm:text-[28px] font-bold tracking-tight ${card.valueColor}`}>
+          <div className="mt-3 sm:mt-5">
+            <div className={`text-xl sm:text-[28px] font-bold tracking-tight truncate ${card.valueColor}`}>
               {card.value}
             </div>
           </div>
