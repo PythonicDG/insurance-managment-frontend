@@ -19,6 +19,8 @@ interface BusinessSummaryChartProps {
   data?: BusinessSummaryItem[];
   loading?: boolean;
   refreshTrigger?: number;
+  selectedMonthKey?: string;
+  onMonthSelect?: (item: BusinessSummaryItem) => void;
 }
 
 const MONTH_NAMES = [
@@ -72,6 +74,8 @@ export function BusinessSummaryChart({
   data = [],
   loading = false,
   refreshTrigger = 0,
+  selectedMonthKey,
+  onMonthSelect,
 }: BusinessSummaryChartProps) {
   const now = new Date();
   const currentYM: YearMonth = {
@@ -551,7 +555,7 @@ export function BusinessSummaryChart({
         {/* Legend Row */}
         <div className="flex items-center justify-between text-xs text-slate-500 border-b border-slate-100 pb-2.5">
           <span className="text-[11px] text-slate-400 hidden sm:inline">
-            Monthly premium collected vs. outstanding balance
+            Click a month to filter dashboard values
           </span>
           <div className="flex items-center gap-4 text-xs font-medium text-slate-600 ml-auto">
             <div className="flex items-center gap-1.5">
@@ -594,16 +598,36 @@ export function BusinessSummaryChart({
             const outHeightPct =
               maxVal > 0 ? (item.outstanding / maxVal) * 100 : 0;
             const isHovered = hoveredIdx === idx;
+            const isSelected = selectedMonthKey === item.month_key;
+
+            const handleMonthSelect = () => {
+              setHoveredIdx(hoveredIdx === idx ? null : idx);
+              onMonthSelect?.(item);
+            };
 
             return (
               <div
                 key={`${item.year}-${item.month}-${idx}`}
-                className={`flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-0 rounded-xl transition-colors py-1 ${
-                  isHovered ? "bg-slate-100/60" : "bg-transparent"
+                role="button"
+                tabIndex={0}
+                aria-label={`Show dashboard values for ${item.month} ${item.year}`}
+                aria-pressed={isSelected}
+                className={`flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-0 rounded-xl transition-all py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                  isSelected
+                    ? "bg-blue-50/80 ring-1 ring-blue-200"
+                    : isHovered
+                    ? "bg-slate-100/60"
+                    : "bg-transparent"
                 }`}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
-                onClick={() => setHoveredIdx(hoveredIdx === idx ? null : idx)}
+                onClick={handleMonthSelect}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleMonthSelect();
+                  }
+                }}
               >
                 {/* Tooltip */}
                 {isHovered && (
@@ -686,7 +710,9 @@ export function BusinessSummaryChart({
                 {/* Month Label */}
                 <span
                   className={`mt-2 shrink-0 text-[11px] sm:text-xs font-semibold transition-colors duration-150 truncate max-w-full text-center ${
-                    isHovered ? "text-blue-600 font-bold" : "text-slate-500"
+                    isSelected || isHovered
+                      ? "text-blue-600 font-bold"
+                      : "text-slate-500"
                   }`}
                 >
                   {item.month}
@@ -699,4 +725,3 @@ export function BusinessSummaryChart({
     </div>
   );
 }
-

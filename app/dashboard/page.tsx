@@ -9,6 +9,7 @@ import {
   insuranceRecordService,
   paymentService,
   DashboardData,
+  BusinessSummaryItem,
   InsuranceCompany,
   InsuranceRecordItem,
   extractApiError,
@@ -22,7 +23,6 @@ import { InsuranceRecordFormModal } from "@/components/insurance/insurance-recor
 import {
   DashboardDateFilter,
   DashboardDateRange,
-  computeRangeForPreset,
   computeRangeForMonthYear,
 } from "@/components/dashboard/dashboard-date-filter";
 import { CollectPaymentModal } from "@/components/dashboard/collect-payment-modal";
@@ -164,6 +164,17 @@ export default function DashboardPage() {
     setDateRange(newRange);
     setLoading(true);
     loadData(newRange, false);
+  };
+
+  const handleBusinessMonthSelect = (item: BusinessSummaryItem) => {
+    const monthRange: DashboardDateRange = {
+      preset: "month_year",
+      ...computeRangeForMonthYear(item.year, Number(item.month_key.split("-")[1])),
+    };
+
+    setDateRange(monthRange);
+    setLoading(true);
+    loadData(monthRange, false);
   };
 
   const handleCreateRecord = async (formData: {
@@ -340,6 +351,12 @@ export default function DashboardPage() {
               data={data.business_summary}
               loading={loading && data.business_summary.length === 0}
               refreshTrigger={chartRefreshTrigger}
+              selectedMonthKey={
+                dateRange.preset === "month_year"
+                  ? dateRange.startDate?.slice(0, 7)
+                  : undefined
+              }
+              onMonthSelect={handleBusinessMonthSelect}
             />
           </div>
 
