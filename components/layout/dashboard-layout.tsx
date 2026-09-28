@@ -33,19 +33,35 @@ export function DashboardLayout({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Clean any legacy tokens from localStorage to prevent cross-session leakage
-    localStorage.removeItem("insure_token");
-    localStorage.removeItem("insure_user");
+    let cachedUser = sessionStorage.getItem("insure_user");
+    let cachedToken = sessionStorage.getItem("insure_token");
 
-    const cachedUser = sessionStorage.getItem("insure_user");
-    const legacyToken = sessionStorage.getItem("insure_token");
-
-    // Fast-path: if session metadata already cached in this tab, render immediately
-    if (cachedUser || legacyToken) {
-      setIsAuthChecked(true);
+    // Restore from localStorage if rememberMe was used and sessionStorage is empty in this tab
+    if (!cachedToken && typeof localStorage !== "undefined") {
+      const localToken = localStorage.getItem("insure_token");
+      if (localToken) {
+        cachedToken = localToken;
+        sessionStorage.setItem("insure_token", localToken);
+      }
+    }
+    if (!cachedUser && typeof localStorage !== "undefined") {
+      const localUser = localStorage.getItem("insure_user");
+      if (localUser) {
+        cachedUser = localUser;
+        sessionStorage.setItem("insure_user", localUser);
+      }
     }
 
-    // Verify active session with backend via HttpOnly cookie (or token fallback)
+    // If no session exists in either storage, redirect to login
+    if (!cachedToken && !cachedUser) {
+      router.replace("/");
+      return;
+    }
+
+    // Session exists, allow rendering layout immediately
+    setIsAuthChecked(true);
+
+    // Verify active session with backend via HttpOnly cookie or token header
     authService
       .getProfile()
       .then((user) => {
@@ -54,12 +70,17 @@ export function DashboardLayout({
         }
         setIsAuthChecked(true);
       })
-      .catch(() => {
-        // If unauthenticated or session expired, redirect to login
-        sessionStorage.removeItem("insure_token");
-        sessionStorage.removeItem("insure_user");
-        sessionStorage.removeItem("insure_last_activity");
-        router.replace("/?reason=session_expired");
+      .catch((err) => {
+        // If unauthenticated or session expired (401), redirect to login
+        if (err?.response?.status === 401) {
+          sessionStorage.removeItem("insure_token");
+          sessionStorage.removeItem("insure_user");
+          sessionStorage.removeItem("insure_last_activity");
+          localStorage.removeItem("insure_token");
+          localStorage.removeItem("insure_user");
+          localStorage.removeItem("insure_last_activity");
+          router.replace("/?reason=session_expired");
+        }
       });
   }, [router]);
 

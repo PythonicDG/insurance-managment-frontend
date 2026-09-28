@@ -61,8 +61,12 @@ export default function LoginPage() {
           );
         }
 
-        const token = sessionStorage.getItem("insure_token");
-        const user = sessionStorage.getItem("insure_user");
+        const token =
+          sessionStorage.getItem("insure_token") ||
+          localStorage.getItem("insure_token");
+        const user =
+          sessionStorage.getItem("insure_user") ||
+          localStorage.getItem("insure_user");
 
         // Redirect to dashboard if authenticated in this tab
         if ((token || user) && !reason) {
@@ -99,14 +103,20 @@ export default function LoginPage() {
             email: trimmedUser,
             password: password,
             remember_me: rememberMe,
+            include_token: true,
           }
         : {
             username: trimmedUser,
             password: password,
             remember_me: rememberMe,
+            include_token: true,
           };
 
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`, payload, {
+      const apiUrl = (
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
+      ).replace(/\/+$/, "");
+
+      const response = await axios.post(`${apiUrl}/api/auth/login/`, payload, {
         headers: { "Content-Type": "application/json" },
         withCredentials: true,
         timeout: 10000,
@@ -115,17 +125,25 @@ export default function LoginPage() {
       if (response && response.status === 200) {
         const data = response.data;
         const user = data.user;
+        const token = data.token;
 
-        // The auth token is securely stored in an HttpOnly cookie set by the server.
-        // It cannot be read or stolen by JavaScript or malicious extensions.
-        // Store only user profile metadata in sessionStorage for UI display.
         if (typeof window !== "undefined") {
-          sessionStorage.removeItem("insure_token");
-          localStorage.removeItem("insure_token");
+          if (token) {
+            sessionStorage.setItem("insure_token", token);
+            if (rememberMe) {
+              localStorage.setItem("insure_token", token);
+            } else {
+              localStorage.removeItem("insure_token");
+            }
+          }
 
           if (user) {
             sessionStorage.setItem("insure_user", JSON.stringify(user));
-            localStorage.removeItem("insure_user");
+            if (rememberMe) {
+              localStorage.setItem("insure_user", JSON.stringify(user));
+            } else {
+              localStorage.removeItem("insure_user");
+            }
           }
 
           if (rememberMe) {
