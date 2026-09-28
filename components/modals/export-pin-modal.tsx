@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { Lock, KeyRound, Loader2, X, AlertCircle, ShieldAlert, ArrowRight } from "lucide-react";
+import React, { useState } from "react";
+import { AlertCircle, CheckCircle2, KeyRound, Loader2, Lock, Printer, X } from "lucide-react";
 import { settingsService } from "@/lib/api";
-import Link from "next/navigation";
 
 interface ExportPinModalProps {
   isOpen: boolean;
@@ -11,6 +10,8 @@ interface ExportPinModalProps {
   onSuccess: () => void;
   title?: string;
   description?: string;
+  requireConfirmation?: boolean;
+  confirmationLabel?: string;
 }
 
 export function ExportPinModal({
@@ -19,38 +20,13 @@ export function ExportPinModal({
   onSuccess,
   title = "Security Verification Required",
   description = "Enter your Export Security PIN to authorize downloading or printing records.",
+  requireConfirmation = false,
+  confirmationLabel = "Open Print Dialog",
 }: ExportPinModalProps) {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [pinNotSet, setPinNotSet] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      setPin("");
-      setErrorMessage(null);
-      setPinNotSet(false);
-      settingsService
-        .get()
-        .then((settings) => {
-          if (!settings.is_export_pin_set) {
-            onClose();
-            onSuccess();
-          } else {
-            setTimeout(() => {
-              inputRef.current?.focus();
-            }, 100);
-          }
-        })
-        .catch(() => {
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 100);
-        });
-    }
-  }, [isOpen, onClose, onSuccess]);
-
+  const [verified, setVerified] = useState(false);
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,20 +41,25 @@ export function ExportPinModal({
       setErrorMessage(null);
       const res = await settingsService.verifyExportPin(pin.trim());
       if (res.success) {
-        onClose();
-        onSuccess();
+        if (requireConfirmation) {
+          setVerified(true);
+        } else {
+          onSuccess();
+        }
       } else {
         if (res.pin_not_set) {
-          onClose();
           onSuccess();
           return;
         }
         setErrorMessage(res.message || "Incorrect PIN. Please try again.");
       }
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as {
+        response?: { data?: { pin_not_set?: boolean; message?: string } };
+        message?: string;
+      };
       const respData = err?.response?.data;
       if (respData?.pin_not_set) {
-        onClose();
         onSuccess();
         return;
       }
@@ -130,26 +111,35 @@ export function ExportPinModal({
             {description}
           </p>
 
-          {pinNotSet ? (
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-3 mb-4">
-              <div className="flex items-start gap-2.5">
-                <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          {verified ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                 <div>
-                  <h4 className="text-xs font-bold text-amber-900">
-                    Security PIN Not Configured
-                  </h4>
-                  <p className="text-xs text-amber-700 mt-1 leading-normal">
-                    An Export Security PIN has not been set for your agency yet. To protect sensitive customer data, please set a PIN first.
+                  <h4 className="text-sm font-bold">PIN verified</h4>
+                  <p className="mt-1 text-xs leading-relaxed">
+                    Click the button below to open the browser print dialog. Choose
+                    <strong> Save as PDF</strong> to download a PDF, or select a printer to print all records.
                   </p>
                 </div>
               </div>
-              <a
-                href="/settings"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
-              >
-                <span>Configure PIN in Settings</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
+              <div className="flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onSuccess}
+                  className="inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-700 cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>{confirmationLabel}</span>
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -169,7 +159,7 @@ export function ExportPinModal({
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <input
-                    ref={inputRef}
+                    autoFocus
                     type="password"
                     inputMode="numeric"
                     autoComplete="off"

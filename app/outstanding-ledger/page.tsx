@@ -213,6 +213,7 @@ export default function OutstandingLedgerPage() {
 
   const handlePinSuccess = () => {
     const action = pendingAction;
+    setIsPinModalOpen(false);
     setPendingAction(null);
     if (action === "export_csv") {
       executeExportCSV();
@@ -797,22 +798,26 @@ export default function OutstandingLedgerPage() {
       />
 
       {/* Export Security PIN Modal */}
-      <ExportPinModal
-        isOpen={isPinModalOpen}
-        onClose={() => {
-          setIsPinModalOpen(false);
-          setPendingAction(null);
-        }}
-        onSuccess={handlePinSuccess}
-        title="Export Authorization"
-        description={
-          pendingAction === "export_csv"
-            ? "Enter your Export Security PIN to download Outstanding Ledger records as CSV."
-            : pendingAction === "save_pdf"
-            ? "Enter your Export Security PIN to save Outstanding Ledger records as PDF."
-            : "Enter your Export Security PIN to print all Outstanding Ledger records."
-        }
-      />
+      {isPinModalOpen && (
+        <ExportPinModal
+          isOpen
+          onClose={() => {
+            setIsPinModalOpen(false);
+            setPendingAction(null);
+          }}
+          onSuccess={handlePinSuccess}
+          requireConfirmation={pendingAction === "save_pdf" || pendingAction === "print_all"}
+          confirmationLabel={pendingAction === "save_pdf" ? "Open Save as PDF" : "Open Print All"}
+          title="Export Authorization"
+          description={
+            pendingAction === "export_csv"
+              ? "Enter your Export Security PIN to download Outstanding Ledger records as CSV."
+              : pendingAction === "save_pdf"
+              ? "Enter your Export Security PIN to save Outstanding Ledger records as PDF."
+              : "Enter your Export Security PIN to print all Outstanding Ledger records."
+          }
+        />
+      )}
 
       {/* Toast Feedback */}
       <Toast

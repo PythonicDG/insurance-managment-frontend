@@ -699,6 +699,7 @@ function InsuranceRecordsContent() {
 
   const handlePinSuccess = () => {
     const action = pendingAction;
+    setIsPinModalOpen(false);
     setPendingAction(null);
     if (action === "export_csv") {
       executeExportCSV();
@@ -2157,22 +2158,26 @@ function InsuranceRecordsContent() {
         </div>
       )}
 
-      <ExportPinModal
-        isOpen={isPinModalOpen}
-        onClose={() => {
-          setIsPinModalOpen(false);
-          setPendingAction(null);
-        }}
-        onSuccess={handlePinSuccess}
-        title="Export Authorization"
-        description={
-          pendingAction === "export_csv"
-            ? "Enter your Export Security PIN to download Insurance Records as CSV."
-            : pendingAction === "save_pdf"
-            ? "Enter your Export Security PIN to save Insurance Records as PDF."
-            : "Enter your Export Security PIN to print all Insurance Records."
-        }
-      />
+      {isPinModalOpen && (
+        <ExportPinModal
+          isOpen
+          onClose={() => {
+            setIsPinModalOpen(false);
+            setPendingAction(null);
+          }}
+          onSuccess={handlePinSuccess}
+          requireConfirmation={pendingAction === "save_pdf" || pendingAction === "print_all"}
+          confirmationLabel={pendingAction === "save_pdf" ? "Open Save as PDF" : "Open Print All"}
+          title="Export Authorization"
+          description={
+            pendingAction === "export_csv"
+              ? "Enter your Export Security PIN to download Insurance Records as CSV."
+              : pendingAction === "save_pdf"
+              ? "Enter your Export Security PIN to save Insurance Records as PDF."
+              : "Enter your Export Security PIN to print all Insurance Records."
+          }
+        />
+      )}
     </DashboardLayout>
   );
 }
