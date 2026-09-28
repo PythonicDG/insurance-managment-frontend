@@ -12,6 +12,8 @@ interface DashboardLayoutProps {
   title?: string;
   subtitle?: string;
   onSearch?: (query: string) => void;
+  showAddRecord?: boolean;
+  onAddRecord?: () => void;
 }
 
 export function DashboardLayout({
@@ -19,6 +21,8 @@ export function DashboardLayout({
   title = "Dashboard",
   subtitle,
   onSearch,
+  showAddRecord = true,
+  onAddRecord,
 }: DashboardLayoutProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(() => {
@@ -112,6 +116,8 @@ export function DashboardLayout({
           title={title}
           subtitle={subtitle}
           onSearch={onSearch}
+          showAddRecord={showAddRecord}
+          onAddRecord={onAddRecord}
         />
 
         {/* Scrollable Page Body with bottom padding for mobile navigation */}

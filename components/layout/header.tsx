@@ -9,8 +9,7 @@ import {
   KeyRound,
   LogOut,
   ShieldCheck,
-  Search,
-  Bell,
+  Plus,
 } from "lucide-react";
 import { authService, UserProfile } from "@/lib/api";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
@@ -22,12 +21,16 @@ interface HeaderProps {
   subtitle?: string;
   onSearch?: (query: string) => void;
   onToggleMobileMenu?: () => void;
+  showAddRecord?: boolean;
+  onAddRecord?: () => void;
 }
 
 export function Header({
   title = "Dashboard",
   subtitle,
   onSearch,
+  showAddRecord = true,
+  onAddRecord,
 }: HeaderProps) {
   const router = useRouter();
   const [currentUser] = useState<UserProfile | null>(() => {
@@ -90,18 +93,30 @@ export function Header({
         )}
       </div>
 
-      {/* Right Controls: Search, Notification Bell & Profile */}
+      {/* Right Controls: Add Record Button, Notification Bell & Profile */}
       <div className="flex items-center gap-2 sm:gap-4 md:gap-5">
-        {/* Search records box matching Figma */}
-        <div className="hidden md:flex items-center relative w-60 lg:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search customer or vehicle number"
-            onChange={(e) => onSearch?.(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/80 hover:bg-slate-100/70 focus:bg-white border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-          />
-        </div>
+        {/* Add Record Button */}
+        {showAddRecord &&
+          (onAddRecord ? (
+            <button
+              type="button"
+              onClick={onAddRecord}
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs hover:shadow transition-all duration-150 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+              title="Add New Insurance Record"
+            >
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+              <span>Add Record</span>
+            </button>
+          ) : (
+            <Link
+              href="/insurance-records/new"
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold shadow-xs hover:shadow transition-all duration-150 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+              title="Add New Insurance Record"
+            >
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+              <span>Add Record</span>
+            </Link>
+          ))}
 
         {/* Notification Bell with Today's Expired Records Popover */}
         <NotificationPopover />
