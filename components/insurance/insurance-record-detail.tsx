@@ -101,7 +101,11 @@ export function InsuranceRecordDetail({
         : typeof record.paid_amount === "number"
         ? record.paid_amount
         : parseFloat(String(record.paid_amount || 0));
-    return Math.max(0, totalPremium - initialPaid);
+    const initialDiscount =
+      typeof record.discount !== "undefined" && record.discount !== null
+        ? parseFloat(String(record.discount))
+        : 0;
+    return Math.max(0, totalPremium - initialDiscount - initialPaid);
   });
 
   const [agencySettings, setAgencySettings] = useState<BusinessSettings | null>(null);
@@ -234,8 +238,19 @@ export function InsuranceRecordDetail({
     }
   };
 
+  const discount =
+    typeof record.discount === "number"
+      ? record.discount
+      : parseFloat(String(record.discount || 0)) || 0;
+  const netPremium =
+    typeof record.net_premium === "number"
+      ? record.net_premium
+      : Math.max(0, totalPremium - discount);
+
   const currentRecord: InsuranceRecordItem = {
     ...record,
+    discount,
+    net_premium: netPremium,
     total_paid: paidAmount,
     paid_amount: paidAmount,
     outstanding: balance,
@@ -638,8 +653,14 @@ export function InsuranceRecordDetail({
             Payment Summary
           </h3>
 
-          {/* 3 Metrics Boxes */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {/* Metrics Boxes */}
+          <div
+            className={`grid gap-3 sm:gap-4 ${
+              discount > 0
+                ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+                : "grid-cols-1 sm:grid-cols-3"
+            }`}
+          >
             <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4">
               <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Total Premium
@@ -648,6 +669,28 @@ export function InsuranceRecordDetail({
                 {formatCurrency(totalPremium)}
               </p>
             </div>
+
+            {discount > 0 && (
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-4">
+                <p className="text-[10px] sm:text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                  Discount Given
+                </p>
+                <p className="text-lg sm:text-xl font-extrabold text-amber-700 mt-1">
+                  {formatCurrency(discount)}
+                </p>
+              </div>
+            )}
+
+            {discount > 0 && (
+              <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4">
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Net Premium
+                </p>
+                <p className="text-lg sm:text-xl font-extrabold text-slate-800 mt-1">
+                  {formatCurrency(netPremium)}
+                </p>
+              </div>
+            )}
 
             <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4">
               <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -725,7 +768,8 @@ export function InsuranceRecordDetail({
                   <tr>
                     <th className="py-2.5 px-4 uppercase tracking-wider">Date</th>
                     <th className="py-2.5 px-4 uppercase tracking-wider">Payment Mode</th>
-                    <th className="py-2.5 px-4 uppercase tracking-wider">Amount</th>
+                    <th className="py-2.5 px-4 uppercase tracking-wider">Amount Received</th>
+                    <th className="py-2.5 px-4 uppercase tracking-wider">Discount</th>
                     <th className="py-2.5 px-4 uppercase tracking-wider">Note / Remarks</th>
                     <th className="py-2.5 px-4 uppercase tracking-wider text-right">Receipt</th>
                   </tr>
@@ -745,6 +789,9 @@ export function InsuranceRecordDetail({
                         }`}
                       >
                         {formatCurrency(tx.amount)}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-amber-700">
+                        {Number(tx.discount || 0) > 0 ? formatCurrency(tx.discount) : "—"}
                       </td>
                       <td className="py-3 px-4 text-slate-500">
                         <span className="inline-flex items-center gap-1.5">

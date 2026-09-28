@@ -23,6 +23,7 @@ import {
   DashboardDateFilter,
   DashboardDateRange,
   computeRangeForPreset,
+  computeRangeForMonthYear,
 } from "@/components/dashboard/dashboard-date-filter";
 import { CollectPaymentModal } from "@/components/dashboard/collect-payment-modal";
 import { RecordPaymentModal } from "@/components/insurance/record-payment-modal";
@@ -33,6 +34,8 @@ const initialDashboardData: DashboardData = {
     today_entries: 0,
     today_premium: 0,
     today_received: 0,
+    today_discount: 0,
+    total_discount: 0,
     total_outstanding: 0,
     total_policies: 0,
     total_premium: 0,
@@ -56,11 +59,16 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Global Date Filter State (Defaults to All Time)
-  const [dateRange, setDateRange] = useState<DashboardDateRange>(() => ({
-    preset: "all",
-    ...computeRangeForPreset("all"),
-  }));
+  // Global Date Filter State (Defaults to Current Month and Year)
+  const [dateRange, setDateRange] = useState<DashboardDateRange>(() => {
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+    return {
+      preset: "month_year",
+      ...computeRangeForMonthYear(curYear, curMonth),
+    };
+  });
 
   // Separate refresh trigger for Business Summary chart (independent of global date filter)
   const [chartRefreshTrigger, setChartRefreshTrigger] = useState(0);
@@ -117,13 +125,14 @@ export default function DashboardPage() {
 
     async function initialFetch() {
       try {
-        const allPreset = computeRangeForPreset("all");
-        const params: { start_date?: string; end_date?: string; filter?: string } = {
-          filter: "all",
-        };
-        if (allPreset.startDate && allPreset.endDate) {
-          params.start_date = allPreset.startDate;
-          params.end_date = allPreset.endDate;
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
+        const initialRange = computeRangeForMonthYear(curYear, curMonth);
+        const params: { start_date?: string; end_date?: string; filter?: string } = {};
+        if (initialRange.startDate && initialRange.endDate) {
+          params.start_date = initialRange.startDate;
+          params.end_date = initialRange.endDate;
         }
 
         const [summaryRes, companiesRes] = await Promise.all([
@@ -217,6 +226,7 @@ export default function DashboardPage() {
     recordId: number;
     paymentType: "full" | "partial";
     amount: number;
+    discount?: number;
     paymentMode: string;
     paymentDate: string;
     remark: string;
@@ -225,6 +235,7 @@ export default function DashboardPage() {
       await paymentService.create({
         recordId: paymentData.recordId,
         amount: paymentData.amount,
+        discount: paymentData.discount,
         payment_mode: paymentData.paymentMode,
         payment_date: paymentData.paymentDate,
         notes: paymentData.remark || "Payment collected via Dashboard",
@@ -270,7 +281,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
           {/* Unified Global Date Filter */}
           <div className="flex-1 sm:flex-initial min-w-0">
             <DashboardDateFilter

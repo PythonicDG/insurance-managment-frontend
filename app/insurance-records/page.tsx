@@ -53,6 +53,13 @@ function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordIte
       ? rec.total_premium
       : parseFloat(String(rec.total_premium || 0));
 
+  const discount =
+    typeof rec.discount === "number"
+      ? rec.discount
+      : parseFloat(String(rec.discount || 0)) || 0;
+
+  const netPremium = Math.max(0, total - discount);
+
   const allTxs = rec.payments || rec.transactions || [];
 
   const backendPaid =
@@ -72,10 +79,12 @@ function augmentRecordWithPayments(rec: InsuranceRecordItem): InsuranceRecordIte
   const balance =
     typeof rec.outstanding !== "undefined" && rec.outstanding !== null
       ? parseFloat(String(rec.outstanding))
-      : Math.max(0, total - paidAmount);
+      : Math.max(0, netPremium - paidAmount);
 
   return {
     ...rec,
+    discount: discount,
+    net_premium: netPremium,
     paid_amount: paidAmount,
     balance: balance,
     payments: allTxs,
@@ -540,6 +549,7 @@ function InsuranceRecordsContent() {
     recordId: number;
     paymentType: "full" | "partial";
     amount: number;
+    discount?: number;
     paymentMode: string;
     paymentDate: string;
     remark: string;
@@ -557,8 +567,10 @@ function InsuranceRecordsContent() {
       return;
     }
 
-    const payAmount = Math.min(paymentData.amount, currentBalance);
-    if (payAmount <= 0) {
+    const payDiscount = paymentData.discount || 0;
+    const maxPayable = Math.max(0, currentBalance - payDiscount);
+    const payAmount = Math.min(paymentData.amount, maxPayable);
+    if (payAmount < 0 || (payAmount === 0 && payDiscount <= 0)) {
       showToast("error", "Invalid Amount", "Payment amount must be greater than zero.");
       return;
     }
@@ -567,6 +579,7 @@ function InsuranceRecordsContent() {
       await paymentService.create({
         recordId: paymentData.recordId,
         amount: payAmount,
+        discount: payDiscount,
         payment_mode: paymentData.paymentMode,
         payment_date: paymentData.paymentDate,
         notes: paymentData.remark || "Payment recorded",
@@ -802,6 +815,14 @@ function InsuranceRecordsContent() {
       return sum + val;
     }, 0);
 
+    const totalDiscount = recordsToPrint.reduce((sum, r) => {
+      const val =
+        typeof r.discount === "number"
+          ? r.discount
+          : parseFloat(String(r.discount || 0)) || 0;
+      return sum + val;
+    }, 0);
+
     const formatCurrency = (val: number) =>
       `₹${val.toLocaleString("en-IN", {
         minimumFractionDigits: 2,
@@ -847,6 +868,10 @@ function InsuranceRecordsContent() {
           typeof r.total_premium === "number"
             ? r.total_premium
             : parseFloat(String(r.total_premium || 0)) || 0;
+        const disc =
+          typeof r.discount === "number"
+            ? r.discount
+            : parseFloat(String(r.discount || 0)) || 0;
 
         return `
           <tr>
@@ -861,6 +886,7 @@ function InsuranceRecordsContent() {
             <td class="col-veh">${vehicleNum}</td>
             <td class="col-comp">${companyName}</td>
             <td class="col-prem">${formatCurrency(prem)}</td>
+            <td class="col-disc" style="text-align: right; color: #b45309; font-weight: 600;">${disc > 0 ? formatCurrency(disc) : "—"}</td>
           </tr>
         `;
       })
@@ -1038,6 +1064,14 @@ function InsuranceRecordsContent() {
               white-space: nowrap;
               padding-right: 10px;
             }
+            .col-disc {
+              width: 90px;
+              text-align: right;
+              font-weight: 600;
+              font-size: 11px;
+              white-space: nowrap;
+              padding-right: 8px;
+            }
             .summary-bar {
               margin-top: 14px;
               display: flex;
@@ -1093,7 +1127,8 @@ function InsuranceRecordsContent() {
                   <th class="col-phone">Mobile Number</th>
                   <th class="col-veh">Vehicle Number</th>
                   <th class="col-comp">Insurance Company</th>
-                  <th class="col-prem" style="text-align: right;">Total</th>
+                  <th class="col-prem" style="text-align: right;">Total Premium</th>
+                  <th class="col-disc" style="text-align: right;">Discount</th>
                 </tr>
               </thead>
               <tbody>
@@ -1105,6 +1140,7 @@ function InsuranceRecordsContent() {
           <div class="summary-bar">
             <div class="summary-item">Total Records: <strong>${recordsToPrint.length}</strong></div>
             <div class="summary-item">Total Premium: <span class="summary-total">${formatCurrency(totalPremium)}</span></div>
+            ${totalDiscount > 0 ? `<div class="summary-item">Total Discount: <span style="color: #b45309; font-weight: 800; font-size: 12.5px;">${formatCurrency(totalDiscount)}</span></div>` : ""}
           </div>
         </body>
       </html>
@@ -1912,7 +1948,12 @@ function InsuranceRecordsContent() {
 
                           {/* Total Premium */}
                           <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
-                            {formatCurrency(totalPrem)}
+                            <div>{formatCurrency(totalPrem)}</div>
+                            {Number(record.discount || 0) > 0 && (
+                              <div className="text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200/60 rounded px-1.5 py-0.5 inline-block mt-0.5">
+                                Disc: ₹{Number(record.discount).toLocaleString("en-IN")}
+                              </div>
+                            )}
                           </td>
 
                           {/* Status */}

@@ -638,6 +638,17 @@ export function BusinessSummaryChart({
                           {formatINR(item.outstanding)}
                         </span>
                       </div>
+                      {typeof item.discount === "number" && item.discount > 0 && (
+                        <div className="flex items-center justify-between gap-3 text-amber-400">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            <span>Discount:</span>
+                          </span>
+                          <span className="font-semibold tabular-nums">
+                            {formatINR(item.discount)}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Tooltip Caret Pointer */}

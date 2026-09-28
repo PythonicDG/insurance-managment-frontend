@@ -124,6 +124,7 @@ export interface CustomerSummary {
 export interface CustomerDetailResponse extends CustomerSummary {
   total_records?: number;
   total_premium?: number | string;
+  total_discount?: number | string;
   total_paid?: number | string;
   total_outstanding?: number | string;
   vehicles?: CustomerVehicleItem[];
@@ -168,6 +169,7 @@ export interface PaymentTransaction {
   payment_mode?: string;
   payment_method?: string;
   amount: number | string;
+  discount?: number | string;
   note?: string;
   notes?: string;
   status?: string;
@@ -184,6 +186,8 @@ export interface InsuranceRecordItem {
   policy_start_date: string;
   policy_expiry_date: string;
   total_premium: number | string;
+  discount?: number | string;
+  net_premium?: number | string;
   alternative_mobile_number?: string;
   paid_amount?: number;
   balance?: number;
@@ -231,6 +235,7 @@ export interface InsuranceRecordPayload {
   policy_expiry_date: string;
   entry_date?: string;
   total_premium: number;
+  discount?: number | string;
   initial_payment?: number | string;
   paid_amount?: number | string;
   initial_payment_method?: string;
@@ -712,6 +717,7 @@ export const paymentService = {
   async create(data: {
     recordId: number;
     amount: number;
+    discount?: number;
     payment_mode?: string;
     payment_method?: string;
     payment_date?: string;
@@ -720,6 +726,8 @@ export const paymentService = {
   }): Promise<{
     message: string;
     data: PaymentTransaction;
+    discount?: string;
+    net_premium?: string;
     total_paid: string;
     outstanding: string;
     payment_status: string;
@@ -728,6 +736,7 @@ export const paymentService = {
       `/insurance/records/${data.recordId}/payments/`,
       {
         amount: data.amount,
+        discount: data.discount !== undefined ? data.discount : 0,
         payment_method: data.payment_method || data.payment_mode || "Cash",
         payment_date: data.payment_date,
         notes: data.notes || data.remark || "",
@@ -746,6 +755,8 @@ export const paymentService = {
   async getHistory(recordId: number): Promise<{
     insurance_record_id: number;
     total_premium: string;
+    discount?: string;
+    net_premium?: string;
     total_paid: string;
     outstanding: string;
     status: string;
@@ -764,6 +775,8 @@ export interface DashboardKpiMetrics {
   today_entries: number;
   today_premium: number;
   today_received: number;
+  today_discount?: number;
+  total_discount?: number;
   total_outstanding: number;
   all_time_outstanding?: number;
   total_policies: number;
@@ -782,6 +795,7 @@ export interface BusinessSummaryItem {
   month_key: string;
   premium_collected: number;
   outstanding: number;
+  discount?: number;
 }
 
 export interface PaymentStatusCategory {
@@ -804,6 +818,7 @@ export interface CompanyWiseSummaryItem {
   total_premium: number;
   premium_collected: number;
   outstanding: number;
+  discount?: number;
   share_percentage: number;
   collection_rate: number;
 }
@@ -823,6 +838,8 @@ export interface DashboardExpiringTodayRecord {
   insurance_company?: string;
   total_premium: number;
   paid_amount: number;
+  discount?: number;
+  net_premium?: number;
   outstanding: number;
   status: "Paid" | "Partial" | "Outstanding" | string;
   policy_status?: string;
@@ -912,6 +929,7 @@ export interface LedgerSummary {
   total_customers_pending: number;
   total_received: number;
   total_premium: number;
+  total_discount?: number;
 }
 
 export interface LedgerRecord {
@@ -921,6 +939,8 @@ export interface LedgerRecord {
   policy_start_date?: string;
   policy_expiry_date?: string;
   total_premium: number | string;
+  discount?: number | string;
+  net_premium?: number | string;
   paid_amount: number | string;
   outstanding: number | string;
   status: "Partial" | "Outstanding" | "Paid" | string;

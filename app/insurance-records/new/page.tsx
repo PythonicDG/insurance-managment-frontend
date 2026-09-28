@@ -98,6 +98,7 @@ function AddInsuranceRecordForm() {
 
   // Form State - Payment Details
   const [totalPremium, setTotalPremium] = useState<string>("");
+  const [discount, setDiscount] = useState<string>("");
   const [paidAmount, setPaidAmount] = useState<string>("");
 
   // Form State - Documents
@@ -169,6 +170,7 @@ function AddInsuranceRecordForm() {
             if (rec.policy_start_date) setStartDate(rec.policy_start_date);
             if (rec.policy_expiry_date) setEndDate(rec.policy_expiry_date);
             if (rec.total_premium) setTotalPremium(String(rec.total_premium));
+            if (rec.discount) setDiscount(String(rec.discount));
             const loadedPaid =
               typeof rec.total_paid !== "undefined" && rec.total_paid !== null
                 ? String(rec.total_paid)
@@ -375,24 +377,26 @@ function AddInsuranceRecordForm() {
 
   // Calculations for Payment Details
   const numericPremium = parseFloat(totalPremium) || 0;
+  const numericDiscount = parseFloat(discount) || 0;
+  const netPremium = Math.max(0, numericPremium - numericDiscount);
   const numericPaid = parseFloat(paidAmount) || 0;
-  const balanceAmount = Math.max(0, numericPremium - numericPaid);
+  const balanceAmount = Math.max(0, netPremium - numericPaid);
 
   // Determine Payment Status
   const paymentStatus = (() => {
-    if (!totalPremium && !paidAmount) {
+    if (!totalPremium || numericPremium <= 0) {
       return "Auto-calculated";
     }
-    if (numericPremium <= 0) {
-      return "Auto-calculated";
-    }
-    if (numericPaid >= numericPremium) {
+    if (numericPaid >= netPremium && netPremium > 0) {
       return "Paid";
     }
-    if (numericPaid > 0 && numericPaid < numericPremium) {
+    if (numericPaid > 0 && numericPaid < netPremium) {
       return "Partial";
     }
-    return "Unpaid";
+    if (numericPaid === 0) {
+      return "Unpaid";
+    }
+    return "Auto-calculated";
   })();
 
   // Handle Drag & Drop
@@ -475,9 +479,15 @@ function AddInsuranceRecordForm() {
       setErrorMessage("Please enter a valid total premium amount.");
       return;
     }
-    if (numericPaid > numericPremium) {
+    if (numericDiscount > 0 && numericDiscount > numericPremium) {
       setErrorMessage(
-        `Paid amount (₹${numericPaid.toLocaleString("en-IN")}) cannot exceed total premium (₹${numericPremium.toLocaleString("en-IN")}).`
+        `Discount (₹${numericDiscount.toLocaleString("en-IN")}) cannot exceed total premium (₹${numericPremium.toLocaleString("en-IN")}).`
+      );
+      return;
+    }
+    if (numericPaid > netPremium) {
+      setErrorMessage(
+        `Paid amount (₹${numericPaid.toLocaleString("en-IN")}) cannot exceed net payable premium (₹${netPremium.toLocaleString("en-IN")}).`
       );
       return;
     }
@@ -554,6 +564,7 @@ function AddInsuranceRecordForm() {
         policy_start_date: startDate,
         policy_expiry_date: endDate,
         total_premium: numericPremium,
+        discount: numericDiscount > 0 ? numericDiscount : 0,
         initial_payment: !isEditMode && numericPaid > 0 ? numericPaid : undefined,
         paid_amount: !isEditMode && numericPaid > 0 ? numericPaid : undefined,
         initial_payment_method: "Cash / Online",
@@ -946,13 +957,22 @@ function AddInsuranceRecordForm() {
 
             {/* Card 4: Payment Details */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-4">
-              <h2 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">
-                Payment Details
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">
+                    Payment Details
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Enter premium, apply discount, and record paid amount
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                {/* Total Premium */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Total Premium
+                    Total Premium <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs sm:text-sm font-medium">
@@ -971,9 +991,10 @@ function AddInsuranceRecordForm() {
                   </div>
                 </div>
 
+                {/* Discount (₹) */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Paid Amount
+                    Discount (₹)
                   </label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs sm:text-sm font-medium">
@@ -984,14 +1005,80 @@ function AddInsuranceRecordForm() {
                       step="any"
                       min="0"
                       max={numericPremium > 0 ? numericPremium : undefined}
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Upfront discount in ₹ deducted from total premium.
+                  </p>
+                </div>
+
+                {/* Net Payable Premium */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Net Payable Premium
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    value={
+                      totalPremium
+                        ? `₹ ${netPremium.toLocaleString("en-IN", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : ""
+                    }
+                    placeholder="Auto: Premium - Discount"
+                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold cursor-not-allowed select-none"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Total premium minus discount.
+                  </p>
+                </div>
+
+                {/* Paid Amount */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Paid Amount
+                    </label>
+                    {netPremium > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPaidAmount(String(netPremium))}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                        title="Click to fill full net payable amount"
+                      >
+                        Pay Full (₹{netPremium.toLocaleString("en-IN")})
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs sm:text-sm font-medium">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max={netPremium > 0 ? netPremium : undefined}
                       value={paidAmount}
                       onChange={(e) => setPaidAmount(e.target.value)}
                       placeholder="0.00"
                       className="w-full pl-8 pr-3.5 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                     />
                   </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Enter amount received (leave 0 or blank for unpaid).
+                  </p>
                 </div>
 
+                {/* Balance Amount */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Balance Amount
@@ -1008,11 +1095,17 @@ function AddInsuranceRecordForm() {
                           })}`
                         : ""
                     }
-                    placeholder="Auto: Premium - Paid"
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-600 placeholder:text-slate-400 font-medium cursor-not-allowed select-none"
+                    placeholder="Auto: Net Premium - Paid"
+                    className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl font-bold cursor-not-allowed select-none ${
+                      balanceAmount === 0 ? "text-emerald-700" : "text-rose-600"
+                    }`}
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Remaining unpaid balance.
+                  </p>
                 </div>
 
+                {/* Payment Status */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Payment Status
@@ -1023,7 +1116,7 @@ function AddInsuranceRecordForm() {
                     disabled
                     value={totalPremium ? paymentStatus : ""}
                     placeholder="Auto-calculated"
-                    className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl font-medium cursor-not-allowed select-none ${
+                    className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl font-bold cursor-not-allowed select-none ${
                       paymentStatus === "Paid"
                         ? "text-emerald-700 font-semibold"
                         : paymentStatus === "Partial"
@@ -1033,6 +1126,9 @@ function AddInsuranceRecordForm() {
                         : "text-slate-600 placeholder:text-slate-400"
                     }`}
                   />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Calculated settlement status.
+                  </p>
                 </div>
               </div>
             </div>

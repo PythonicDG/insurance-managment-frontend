@@ -66,7 +66,11 @@ export function getTodayDateString(): string {
 }
 
 /**
- * Returns the date one year from now (or from baseDate) formatted as "YYYY-MM-DD".
+ * Returns the policy expiry date for a 1-year policy starting on baseDate.
+ * In standard insurance policies, a 1-year policy period ends 1 year later minus 1 day.
+ * Example:
+ *   Start date: 03-Sep-2024 -> Expiry date: 02-Sep-2025
+ *   Start date: 01-Jan-2025 -> Expiry date: 31-Dec-2025
  */
 export function getNextYearDateString(baseDate: Date | string = new Date()): string {
   if (!baseDate) return "";
@@ -74,5 +78,7 @@ export function getNextYearDateString(baseDate: Date | string = new Date()): str
   if (isNaN(d.getTime())) return "";
   const nextYear = new Date(d);
   nextYear.setFullYear(nextYear.getFullYear() + 1);
+  nextYear.setDate(nextYear.getDate() - 1);
   return formatLocalDateISO(nextYear);
 }
+

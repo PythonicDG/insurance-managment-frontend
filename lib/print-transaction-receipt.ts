@@ -226,6 +226,13 @@ export function printTransactionStatement({
       ? record.total_premium
       : parseFloat(String(record.total_premium || 0)) || 0;
 
+  const discount =
+    typeof record.discount === "number"
+      ? record.discount
+      : parseFloat(String(record.discount || 0)) || 0;
+
+  const netPremium = Math.max(0, totalPremium - discount);
+
   const totalPaid =
     explicitTotalPaid !== undefined
       ? explicitTotalPaid
@@ -242,7 +249,7 @@ export function printTransactionStatement({
       ? parseFloat(String(record.outstanding)) || 0
       : typeof record.balance === "number"
       ? record.balance
-      : Math.max(0, totalPremium - totalPaid);
+      : Math.max(0, netPremium - totalPaid);
 
   const isFullyPaid = balance <= 0 && totalPremium > 0;
   const isPartiallyPaid = totalPaid > 0 && balance > 0;
@@ -281,7 +288,7 @@ export function printTransactionStatement({
   const txRowsHtml =
     txList.length === 0
       ? `<tr>
-          <td colspan="6" class="empty-state">
+          <td colspan="7" class="empty-state">
             No payment transactions have been recorded yet for this policy record.
           </td>
         </tr>`
@@ -291,6 +298,7 @@ export function printTransactionStatement({
             const mode = tx.payment_mode || tx.payment_method || "Cash";
             const note = tx.note || tx.notes || "—";
             const amount = typeof tx.amount === "number" ? tx.amount : parseFloat(String(tx.amount || 0));
+            const txDisc = typeof tx.discount === "number" ? tx.discount : parseFloat(String(tx.discount || 0)) || 0;
             const statusLabel = tx.is_outstanding ? "Outstanding" : "Received";
             const statusClass = tx.is_outstanding ? "badge-red" : "badge-green";
 
@@ -302,6 +310,7 @@ export function printTransactionStatement({
                 <span class="badge-mode">${escapeHtml(mode)}</span>
               </td>
               <td>${escapeHtml(note)}</td>
+              <td class="col-right" style="color: #b45309; font-weight: 600;">${txDisc > 0 ? formatCurrency(txDisc) : "—"}</td>
               <td class="col-center">
                 <span class="${statusClass}">${statusLabel}</span>
               </td>
@@ -512,7 +521,6 @@ export function printTransactionStatement({
       margin-bottom: 16px;
     }
     .metric-cell {
-      width: 33.333%;
       border-radius: 8px;
       padding: 10px 12px;
       vertical-align: middle;
@@ -524,6 +532,10 @@ export function printTransactionStatement({
     .metric-green {
       background: #ecfdf5;
       border: 1px solid #a7f3d0;
+    }
+    .metric-amber {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
     }
     .metric-red {
       background: #fef2f2;
@@ -538,6 +550,7 @@ export function printTransactionStatement({
     }
     .metric-blue .metric-title { color: #475569; }
     .metric-green .metric-title { color: #047857; }
+    .metric-amber .metric-title { color: #b45309; }
     .metric-red .metric-title { color: #b91c1c; }
 
     .metric-amount {
@@ -547,6 +560,7 @@ export function printTransactionStatement({
     }
     .metric-blue .metric-amount { color: #0f172a; }
     .metric-green .metric-amount { color: #059669; }
+    .metric-amber .metric-amount { color: #d97706; }
     .metric-red .metric-amount { color: #dc2626; }
 
     /* Transactions Table */
@@ -793,6 +807,19 @@ export function printTransactionStatement({
           <div class="metric-title">Total Policy Premium</div>
           <div class="metric-amount">${formatCurrency(totalPremium)}</div>
         </td>
+        ${
+          discount > 0
+            ? `
+        <td class="metric-cell metric-amber">
+          <div class="metric-title">Discount Given</div>
+          <div class="metric-amount">${formatCurrency(discount)}</div>
+        </td>
+        <td class="metric-cell metric-blue">
+          <div class="metric-title">Net Premium</div>
+          <div class="metric-amount">${formatCurrency(netPremium)}</div>
+        </td>`
+            : ""
+        }
         <td class="metric-cell metric-green">
           <div class="metric-title">Total Amount Received</div>
           <div class="metric-amount">${formatCurrency(totalPaid)}</div>
@@ -814,10 +841,11 @@ export function printTransactionStatement({
       <thead>
         <tr>
           <th style="width: 5%;" class="col-center">#</th>
-          <th style="width: 18%;">Payment Date</th>
-          <th style="width: 16%;" class="col-center">Payment Mode</th>
-          <th style="width: 35%;">Notes / Reference</th>
-          <th style="width: 11%;" class="col-center">Status</th>
+          <th style="width: 17%;">Payment Date</th>
+          <th style="width: 14%;" class="col-center">Payment Mode</th>
+          <th style="width: 27%;">Notes / Reference</th>
+          <th style="width: 12%;" class="col-right">Discount</th>
+          <th style="width: 10%;" class="col-center">Status</th>
           <th style="width: 15%;" class="col-right">Amount Received</th>
         </tr>
       </thead>
@@ -826,11 +854,11 @@ export function printTransactionStatement({
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="5" class="col-right">Total Payments Received:</td>
+          <td colspan="6" class="col-right">Total Payments Received:</td>
           <td class="col-right text-dark">${formatCurrency(totalPaid)}</td>
         </tr>
         <tr>
-          <td colspan="5" class="col-right" style="color: ${balance > 0 ? "#dc2626" : "#059669"};">
+          <td colspan="6" class="col-right" style="color: ${balance > 0 ? "#dc2626" : "#059669"};">
             Remaining Outstanding Balance:
           </td>
           <td class="col-right" style="color: ${balance > 0 ? "#dc2626" : "#059669"}; font-weight: 800;">
@@ -928,6 +956,10 @@ export function printSinglePaymentReceipt({
     typeof transaction.amount === "number"
       ? transaction.amount
       : parseFloat(String(transaction.amount || 0)) || 0;
+  const txDiscount =
+    typeof transaction.discount === "number"
+      ? transaction.discount
+      : parseFloat(String(transaction.discount || 0)) || 0;
   const txDate = formatDisplayDate(transaction.date || transaction.payment_date);
   const txMode = transaction.payment_mode || transaction.payment_method || "Cash";
   const txNote = transaction.note || transaction.notes || "—";
@@ -1130,6 +1162,19 @@ export function printSinglePaymentReceipt({
         <div class="label">Remarks / Note:</div>
         <div class="value">${escapeHtml(txNote)}</div>
       </div>
+      ${
+        txDiscount > 0
+          ? `
+      <div class="row">
+        <div class="label">Discount Granted:</div>
+        <div class="value font-bold" style="color: #b45309;">${formatCurrency(txDiscount)}</div>
+      </div>
+      <div class="row">
+        <div class="label">Total Adjusted Against Premium:</div>
+        <div class="value font-bold">${formatCurrency(txAmount + txDiscount)}</div>
+      </div>`
+          : ""
+      }
 
       <div class="highlight-amount">
         <div>
@@ -1204,6 +1249,10 @@ export function printVehicleHistorySummary({
     const p = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
     return sum + p;
   }, 0);
+  const totalDiscountAll = historyRecords.reduce((sum, r) => {
+    const d = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
+    return sum + d;
+  }, 0);
 
   const rows = historyRecords
     .map((r, i) => {
@@ -1212,6 +1261,7 @@ export function printVehicleHistorySummary({
       const start = formatDisplayDate(r.policy_start_date);
       const exp = formatDisplayDate(r.policy_expiry_date);
       const prem = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+      const disc = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
       const statusBadge = r.is_active
         ? `<span style="color: #059669; font-weight: 700;">Active</span>`
         : `<span style="color: #64748b;">Expired</span>`;
@@ -1223,6 +1273,7 @@ export function printVehicleHistorySummary({
         <td>${escapeHtml(comp)}</td>
         <td>${start} &ndash; ${exp}</td>
         <td style="text-align: right; font-weight: 700;">${formatCurrency(prem)}</td>
+        <td style="text-align: right; color: #b45309; font-weight: 600;">${disc > 0 ? formatCurrency(disc) : "—"}</td>
         <td style="text-align: center;">${statusBadge}</td>
       </tr>`;
     })
@@ -1346,11 +1397,12 @@ export function printVehicleHistorySummary({
   <table>
     <thead>
       <tr>
-        <th style="width: 6%; text-align: center;">#</th>
-        <th style="width: 25%;">Policy Number</th>
-        <th style="width: 25%;">Insurance Company</th>
-        <th style="width: 25%;">Insurance Period</th>
-        <th style="width: 19%; text-align: right;">Total Premium</th>
+        <th style="width: 5%; text-align: center;">#</th>
+        <th style="width: 23%;">Policy Number</th>
+        <th style="width: 23%;">Insurance Company</th>
+        <th style="width: 21%;">Insurance Period</th>
+        <th style="width: 15%; text-align: right;">Total Premium</th>
+        <th style="width: 13%; text-align: right;">Discount</th>
         <th style="width: 10%; text-align: center;">Status</th>
       </tr>
     </thead>
@@ -1359,8 +1411,9 @@ export function printVehicleHistorySummary({
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="4" style="text-align: right;">Cumulative Premium Across All Records:</td>
+        <td colspan="4" style="text-align: right;">Cumulative Totals Across All Records:</td>
         <td style="text-align: right;">${formatCurrency(totalPremiumAll)}</td>
+        <td style="text-align: right; color: #b45309;">${formatCurrency(totalDiscountAll)}</td>
         <td></td>
       </tr>
     </tfoot>
@@ -1430,6 +1483,11 @@ export function printCustomerInsuranceHistory({
     return sum + val;
   }, 0);
 
+  const totalDiscount = records.reduce((sum, r) => {
+    const val = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
+    return sum + val;
+  }, 0);
+
   const totalPaid = records.reduce((sum, r) => {
     const val = typeof r.total_paid !== "undefined" && r.total_paid !== null
       ? parseFloat(String(r.total_paid)) || 0
@@ -1439,7 +1497,7 @@ export function printCustomerInsuranceHistory({
     return sum + val;
   }, 0);
 
-  const totalOutstanding = Math.max(0, totalPremium - totalPaid);
+  const totalOutstanding = Math.max(0, totalPremium - totalDiscount - totalPaid);
 
   const cleanCust = sanitizeFileName(customer.name);
   const cleanPhone = sanitizeFileName(customer.phone);
@@ -1451,7 +1509,7 @@ export function printCustomerInsuranceHistory({
   const fileName = parts.join("_");
 
   const rows = records.length === 0
-    ? `<tr><td colspan="8" style="text-align: center; padding: 24px; color: #64748b; font-style: italic;">No insurance policies recorded for this customer.</td></tr>`
+    ? `<tr><td colspan="9" style="text-align: center; padding: 24px; color: #64748b; font-style: italic;">No insurance policies recorded for this customer.</td></tr>`
     : records.map((r, i) => {
         const pNum = r.policy_number || "—";
         const comp = r.insurance_company?.name || "—";
@@ -1460,6 +1518,7 @@ export function printCustomerInsuranceHistory({
         const start = formatDisplayDate(r.policy_start_date);
         const exp = formatDisplayDate(r.policy_expiry_date);
         const prem = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+        const disc = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
         const paid = typeof r.total_paid !== "undefined" && r.total_paid !== null
           ? parseFloat(String(r.total_paid)) || 0
           : typeof r.paid_amount === "number"
@@ -1469,7 +1528,7 @@ export function printCustomerInsuranceHistory({
           ? parseFloat(String(r.outstanding)) || 0
           : typeof r.balance === "number"
           ? r.balance
-          : Math.max(0, prem - paid);
+          : Math.max(0, prem - disc - paid);
 
         const statusLabel = r.is_active ? "Active" : "Expired";
         const statusStyle = r.is_active
@@ -1489,6 +1548,7 @@ export function printCustomerInsuranceHistory({
           </td>
           <td style="font-size: 10px;">${start} &ndash; ${exp}</td>
           <td style="text-align: right; font-weight: 700;">${formatCurrency(prem)}</td>
+          <td style="text-align: right; color: #b45309; font-weight: 600;">${disc > 0 ? formatCurrency(disc) : "—"}</td>
           <td style="text-align: right; color: #059669; font-weight: 600;">${formatCurrency(paid)}</td>
           <td style="text-align: right; color: ${bal > 0 ? "#dc2626" : "#059669"}; font-weight: 700;">${formatCurrency(bal)}</td>
           <td style="text-align: center;">
@@ -1684,6 +1744,15 @@ export function printCustomerInsuranceHistory({
               <div class="metric-label" style="color: #1e40af;">Total Premium</div>
               <div class="metric-val" style="color: #1d4ed8;">${formatCurrency(totalPremium)}</div>
             </td>
+            ${
+              totalDiscount > 0
+                ? `
+            <td class="metric-cell" style="background: #fffbeb; border: 1px solid #fde68a;">
+              <div class="metric-label" style="color: #b45309;">Total Discount</div>
+              <div class="metric-val" style="color: #b45309;">${formatCurrency(totalDiscount)}</div>
+            </td>`
+                : ""
+            }
             <td class="metric-cell" style="background: #ecfdf5; border: 1px solid #a7f3d0;">
               <div class="metric-label" style="color: #047857;">Total Received</div>
               <div class="metric-val" style="color: #059669;">${formatCurrency(totalPaid)}</div>
@@ -1701,14 +1770,15 @@ export function printCustomerInsuranceHistory({
   <table class="ledger-table">
     <thead>
       <tr>
-        <th style="width: 4%; text-align: center;">#</th>
-        <th style="width: 22%;">Policy &amp; Company</th>
-        <th style="width: 17%;">Vehicle</th>
-        <th style="width: 18%;">Insurance Period</th>
-        <th style="width: 13%; text-align: right;">Total Premium</th>
+        <th style="width: 3%; text-align: center;">#</th>
+        <th style="width: 21%;">Policy &amp; Company</th>
+        <th style="width: 15%;">Vehicle</th>
+        <th style="width: 17%;">Insurance Period</th>
+        <th style="width: 12%; text-align: right;">Total Premium</th>
+        <th style="width: 10%; text-align: right;">Discount</th>
         <th style="width: 11%; text-align: right;">Paid</th>
         <th style="width: 11%; text-align: right;">Balance</th>
-        <th style="width: 7%; text-align: center;">Status</th>
+        <th style="width: 6%; text-align: center;">Status</th>
       </tr>
     </thead>
     <tbody>
@@ -1718,6 +1788,7 @@ export function printCustomerInsuranceHistory({
       <tr>
         <td colspan="4" style="text-align: right;">Cumulative Portfolio Totals:</td>
         <td style="text-align: right; color: #0f172a;">${formatCurrency(totalPremium)}</td>
+        <td style="text-align: right; color: #b45309;">${formatCurrency(totalDiscount)}</td>
         <td style="text-align: right; color: #059669;">${formatCurrency(totalPaid)}</td>
         <td style="text-align: right; color: ${totalOutstanding > 0 ? "#dc2626" : "#059669"};">${formatCurrency(totalOutstanding)}</td>
         <td></td>
@@ -1776,6 +1847,7 @@ export function printSingleInsuranceRecord({
   const recordDate = formatDisplayDate(record.entry_date || record.created_at);
 
   const totalPremium = typeof record.total_premium === "number" ? record.total_premium : parseFloat(String(record.total_premium || 0)) || 0;
+  const discount = typeof record.discount === "number" ? record.discount : parseFloat(String(record.discount || 0)) || 0;
   const totalPaid = typeof record.total_paid !== "undefined" && record.total_paid !== null
     ? parseFloat(String(record.total_paid)) || 0
     : typeof record.paid_amount === "number"
@@ -1785,7 +1857,7 @@ export function printSingleInsuranceRecord({
     ? parseFloat(String(record.outstanding)) || 0
     : typeof record.balance === "number"
     ? record.balance
-    : Math.max(0, totalPremium - totalPaid);
+    : Math.max(0, totalPremium - discount - totalPaid);
 
   const cleanPol = sanitizeFileName(policyNum !== "—" ? policyNum : "");
   const cleanVeh = sanitizeFileName(vehicleNum !== "—" ? vehicleNum : "");
@@ -1958,6 +2030,15 @@ export function printSingleInsuranceRecord({
         <div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #475569; margin-bottom: 2px;">Total Premium</div>
         <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${formatCurrency(totalPremium)}</div>
       </td>
+      ${
+        discount > 0
+          ? `
+      <td style="background: #fffbeb; border: 1px solid #fde68a;">
+        <div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #b45309; margin-bottom: 2px;">Discount Given</div>
+        <div style="font-size: 18px; font-weight: 800; color: #b45309;">${formatCurrency(discount)}</div>
+      </td>`
+          : ""
+      }
       <td style="background: #ecfdf5; border: 1px solid #a7f3d0;">
         <div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #047857; margin-bottom: 2px;">Amount Paid</div>
         <div style="font-size: 18px; font-weight: 800; color: #059669;">${formatCurrency(totalPaid)}</div>
@@ -1996,6 +2077,7 @@ export interface PrintOutstandingLedgerOptions {
   };
   summary?: {
     total_premium?: number;
+    total_discount?: number;
     total_received?: number;
     total_outstanding?: number;
     total_customers_pending?: number;
@@ -2032,6 +2114,14 @@ export function printOutstandingLedgerReport({
       ? externalSummary.total_premium
       : records.reduce((sum, r) => {
           const val = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+          return sum + val;
+        }, 0);
+
+  const totalDiscount =
+    externalSummary?.total_discount !== undefined
+      ? externalSummary.total_discount
+      : records.reduce((sum, r) => {
+          const val = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
           return sum + val;
         }, 0);
 
@@ -2096,10 +2186,11 @@ export function printOutstandingLedgerReport({
 
   const rowsHtml =
     records.length === 0
-      ? `<tr><td colspan="10" class="empty-state">No outstanding or ledger entries match your filter criteria.</td></tr>`
+      ? `<tr><td colspan="11" class="empty-state">No outstanding or ledger entries match your filter criteria.</td></tr>`
       : records
           .map((r, idx) => {
             const prem = typeof r.total_premium === "number" ? r.total_premium : parseFloat(String(r.total_premium || 0)) || 0;
+            const disc = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
             const paid = typeof r.paid_amount === "number" ? r.paid_amount : parseFloat(String(r.paid_amount || 0)) || 0;
             const out = typeof r.outstanding === "number" ? r.outstanding : parseFloat(String(r.outstanding || 0)) || 0;
 
@@ -2124,6 +2215,7 @@ export function printOutstandingLedgerReport({
               <td class="text-dark font-medium">${escapeHtml(r.insurance_company_name || "—")}</td>
               <td class="font-mono text-muted">${escapeHtml(r.policy_number || "—")}</td>
               <td class="col-right font-medium text-dark">${formatCurrency(prem)}</td>
+              <td class="col-right font-medium" style="color: #b45309;">${disc > 0 ? formatCurrency(disc) : "—"}</td>
               <td class="col-right font-medium text-green">${formatCurrency(paid)}</td>
               <td class="col-right font-bold text-red">${formatCurrency(out)}</td>
               <td class="col-center">
@@ -2483,6 +2575,15 @@ export function printOutstandingLedgerReport({
           <div class="metric-title">Total Premium</div>
           <div class="metric-amount">${formatCurrency(totalPremium)}</div>
         </td>
+        ${
+          totalDiscount > 0
+            ? `
+        <td class="metric-cell metric-amber">
+          <div class="metric-title">Total Discount</div>
+          <div class="metric-amount" style="color: #b45309;">${formatCurrency(totalDiscount)}</div>
+        </td>`
+            : ""
+        }
         <td class="metric-cell metric-green">
           <div class="metric-title">Total Received</div>
           <div class="metric-amount">${formatCurrency(totalPaid)}</div>
@@ -2504,12 +2605,13 @@ export function printOutstandingLedgerReport({
         <thead>
           <tr>
             <th style="width: 3%; text-align: center;">#</th>
-            <th style="width: 17%;">Customer Name</th>
-            <th style="width: 13%;">Phone</th>
-            <th style="width: 11%;">Vehicle Number</th>
-            <th style="width: 13%;">Insurance Company</th>
-            <th style="width: 11%;">Policy Number</th>
+            <th style="width: 16%;">Customer Name</th>
+            <th style="width: 12%;">Phone</th>
+            <th style="width: 10%;">Vehicle Number</th>
+            <th style="width: 12%;">Insurance Company</th>
+            <th style="width: 10%;">Policy Number</th>
             <th style="width: 10%; text-align: right;">Total Premium</th>
+            <th style="width: 8%; text-align: right;">Discount</th>
             <th style="width: 9%; text-align: right;">Paid Amount</th>
             <th style="width: 9%; text-align: right;">Outstanding</th>
             <th style="width: 4%; text-align: center;">Status</th>
@@ -2524,6 +2626,7 @@ export function printOutstandingLedgerReport({
                 <tr>
                   <td colspan="6" style="text-align: right;">Total Summary (${records.length} Policies):</td>
                   <td style="text-align: right; color: #0f172a;">${formatCurrency(totalPremium)}</td>
+                  <td style="text-align: right; color: #b45309;">${formatCurrency(totalDiscount)}</td>
                   <td style="text-align: right; color: #059669;">${formatCurrency(totalPaid)}</td>
                   <td style="text-align: right; color: #dc2626;">${formatCurrency(totalOutstanding)}</td>
                   <td></td>
@@ -2538,6 +2641,7 @@ export function printOutstandingLedgerReport({
     <div class="summary-bar">
       <div class="summary-item">Total Listed Records: <strong>${records.length}</strong></div>
       <div class="summary-item">Total Premium: <strong>${formatCurrency(totalPremium)}</strong></div>
+      ${totalDiscount > 0 ? `<div class="summary-item">Total Discount: <span style="color: #b45309; font-weight: 800;">${formatCurrency(totalDiscount)}</span></div>` : ""}
       <div class="summary-item">Total Received: <span class="sum-green">${formatCurrency(totalPaid)}</span></div>
       <div class="summary-item">Total Outstanding: <span class="sum-red">${formatCurrency(totalOutstanding)}</span></div>
     </div>

@@ -280,13 +280,14 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   // Status Badge Helper
   const renderPaymentStatusBadge = (rec: InsuranceRecordItem) => {
     const total = Number(rec.total_premium) || 0;
+    const discount = Number(rec.discount || 0);
     const paid = Number(rec.paid_amount ?? rec.total_paid ?? 0);
     const rawBal =
       rec.balance !== undefined && rec.balance !== null
         ? Number(rec.balance)
         : rec.outstanding !== undefined && rec.outstanding !== null
         ? Number(rec.outstanding)
-        : Math.max(0, total - paid);
+        : Math.max(0, total - discount - paid);
     const balance = Math.max(0, isNaN(rawBal) ? 0 : rawBal);
 
     if (rec.payment_status === "PAID" || (balance <= 0 && total > 0)) {
@@ -377,6 +378,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     recordId: number;
     paymentType: "full" | "partial";
     amount: number;
+    discount?: number;
     paymentMode: string;
     paymentDate: string;
     remark: string;
@@ -385,6 +387,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       await paymentService.create({
         recordId: paymentData.recordId,
         amount: paymentData.amount,
+        discount: paymentData.discount,
         payment_mode: paymentData.paymentMode,
         payment_date: paymentData.paymentDate,
         notes:
@@ -738,6 +741,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                                 <ArrowUpDown className="w-3 h-3 text-slate-400" />
                               </div>
                             </th>
+                            <th className="py-3 px-4 select-none text-slate-500 font-bold">
+                              <span>DISCOUNT</span>
+                            </th>
                             <th
                               className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
                               onClick={() => handleSort("paid")}
@@ -771,13 +777,14 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                         <tbody className="divide-y divide-slate-100">
                           {sortedRecords.map((rec) => {
                             const total = Number(rec.total_premium) || 0;
+                            const discount = Number(rec.discount || 0);
                             const paid = Number(rec.paid_amount ?? rec.total_paid ?? 0);
                             const rawBal =
                               rec.balance !== undefined && rec.balance !== null
                                 ? Number(rec.balance)
                                 : rec.outstanding !== undefined && rec.outstanding !== null
                                 ? Number(rec.outstanding)
-                                : Math.max(0, total - paid);
+                                : Math.max(0, total - discount - paid);
                             const balance = Math.max(0, isNaN(rawBal) ? 0 : rawBal);
 
                             return (
@@ -802,6 +809,11 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                                 {/* Total Premium */}
                                 <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
                                   {formatCurrency(total)}
+                                </td>
+
+                                {/* Discount */}
+                                <td className="py-3.5 px-4 font-medium text-amber-700 whitespace-nowrap">
+                                  {discount > 0 ? formatCurrency(discount) : "—"}
                                 </td>
 
                                 {/* Paid Amount (Green text) */}

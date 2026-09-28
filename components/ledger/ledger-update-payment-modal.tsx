@@ -38,10 +38,11 @@ export function LedgerUpdatePaymentModal({
   const isFullyPaid = outstanding <= 0;
 
   const [paymentType, setPaymentType] = useState<"full" | "partial">(
-    outstanding > 0 ? "partial" : "full"
+    outstanding > 0 ? "full" : "full"
   );
+  const [discount, setDiscount] = useState<number | string>(0);
   const [amount, setAmount] = useState<number | string>(() =>
-    outstanding > 0 ? Math.min(outstanding, Math.round(outstanding * 0.5)) : 0
+    outstanding > 0 ? outstanding : 0
   );
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [paymentDate, setPaymentDate] = useState(() => {
@@ -59,10 +60,12 @@ export function LedgerUpdatePaymentModal({
           ? record.outstanding
           : parseFloat(String(record.outstanding || 0));
       if (out > 0) {
-        setPaymentType("partial");
+        setPaymentType("full");
+        setDiscount(0);
         setAmount(out);
       } else {
         setPaymentType("full");
+        setDiscount(0);
         setAmount(0);
       }
       setPaymentMode("UPI");
@@ -73,25 +76,55 @@ export function LedgerUpdatePaymentModal({
     }
   }, [record]);
 
+  const numDiscount = parseFloat(String(discount)) || 0;
   const numAmount = parseFloat(String(amount)) || 0;
-  const remainingAfterPayment = Math.max(0, outstanding - numAmount);
+  const maxPayable = Math.max(0, outstanding - numDiscount);
+  const remainingAfterPayment = Math.max(0, outstanding - numDiscount - numAmount);
 
   const handleTypeChange = (type: "full" | "partial") => {
     if (isFullyPaid) return;
     setPaymentType(type);
     if (type === "full") {
-      setAmount(outstanding);
+      setAmount(maxPayable);
       setError("");
+    } else {
+      if (Number(amount) >= maxPayable && maxPayable > 0) {
+        setAmount(Math.round(maxPayable * 0.5) || 1);
+        setError("");
+      }
+    }
+  };
+
+  const handleDiscountChange = (val: string) => {
+    setDiscount(val);
+    const disc = parseFloat(val) || 0;
+    if (disc < 0) {
+      setError("Discount cannot be negative.");
+    } else if (disc > outstanding) {
+      setError(`Discount cannot exceed outstanding balance of ₹${outstanding.toLocaleString("en-IN")}`);
+    } else {
+      setError("");
+      const newMaxPayable = Math.max(0, outstanding - disc);
+      if (paymentType === "full") {
+        setAmount(newMaxPayable);
+      } else if (Number(amount) > newMaxPayable) {
+        setAmount(newMaxPayable);
+      }
     }
   };
 
   const handleAmountChange = (val: string) => {
     setAmount(val);
     const parsed = parseFloat(val) || 0;
-    if (parsed > outstanding) {
-      setError(`Amount cannot exceed outstanding balance of ₹${outstanding.toLocaleString("en-IN")}`);
+    if (parsed > maxPayable) {
+      setError(`Amount cannot exceed payable balance of ₹${maxPayable.toLocaleString("en-IN")}`);
     } else {
       setError("");
+      if (parsed < maxPayable && paymentType === "full") {
+        setPaymentType("partial");
+      } else if (parsed === maxPayable && paymentType === "partial" && parsed > 0) {
+        setPaymentType("full");
+      }
     }
   };
 
@@ -101,12 +134,21 @@ export function LedgerUpdatePaymentModal({
       setError("This policy is fully paid. No further payments are required.");
       return;
     }
-    if (numAmount <= 0) {
-      setError("Please enter a valid payment amount greater than zero.");
+    if (numDiscount > 0 && numDiscount > outstanding) {
+      setError(`Discount cannot exceed outstanding balance of ₹${outstanding.toLocaleString("en-IN")}`);
       return;
     }
-    if (numAmount > outstanding) {
-      setError(`Amount cannot exceed outstanding balance of ₹${outstanding.toLocaleString("en-IN")}`);
+    const maxPayable = Math.max(0, outstanding - numDiscount);
+    if (numAmount < 0) {
+      setError("Please enter a valid payment amount.");
+      return;
+    }
+    if (numAmount > maxPayable) {
+      setError(`Amount cannot exceed payable balance of ₹${maxPayable.toLocaleString("en-IN")}`);
+      return;
+    }
+    if (numAmount === 0 && numDiscount <= 0) {
+      setError("Please enter a valid payment amount greater than zero.");
       return;
     }
 
@@ -117,6 +159,7 @@ export function LedgerUpdatePaymentModal({
       await paymentService.create({
         recordId: record.id,
         amount: numAmount,
+        discount: paymentType === "full" ? numDiscount : 0,
         payment_mode: paymentMode,
         payment_method: paymentMode,
         payment_date: paymentDate,
@@ -138,8 +181,8 @@ export function LedgerUpdatePaymentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[88vh] overflow-hidden my-auto">
         {/* Modal Header */}
         <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
           <div>
@@ -235,9 +278,34 @@ export function LedgerUpdatePaymentModal({
                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                 } ${isFullyPaid ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                Full Payment (₹{outstanding.toLocaleString("en-IN")})
+                Full Payment (₹{maxPayable.toLocaleString("en-IN")})
               </button>
             </div>
+          </div>
+
+          {/* Discount Field (Editable on all payments) */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Discount (₹)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                ₹
+              </span>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                max={outstanding}
+                value={discount}
+                onChange={(e) => handleDiscountChange(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-8 pr-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Upfront discount in ₹ deducted from payable balance.
+            </p>
           </div>
 
           {/* Payment Amount Input */}
@@ -246,16 +314,16 @@ export function LedgerUpdatePaymentModal({
               <label className="block text-xs font-semibold text-slate-700">
                 Amount to Pay (₹) <span className="text-red-500">*</span>
               </label>
-              {paymentType === "partial" && outstanding > 0 && (
+              {paymentType === "partial" && maxPayable > 0 && (
                 <button
                   type="button"
                   onClick={() => {
-                    setAmount(outstanding);
+                    setAmount(maxPayable);
                     setError("");
                   }}
                   className="text-[11px] text-blue-600 hover:underline font-medium cursor-pointer"
                 >
-                  Pay Max (₹{outstanding.toLocaleString("en-IN")})
+                  Pay Max (₹{maxPayable.toLocaleString("en-IN")})
                 </button>
               )}
             </div>
@@ -266,7 +334,7 @@ export function LedgerUpdatePaymentModal({
               <input
                 type="number"
                 min="1"
-                max={outstanding}
+                max={maxPayable}
                 step="any"
                 value={amount}
                 disabled={isFullyPaid || paymentType === "full"}

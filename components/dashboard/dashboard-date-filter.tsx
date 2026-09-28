@@ -12,7 +12,8 @@ export type DateFilterPreset =
   | "last_30"
   | "this_year"
   | "all"
-  | "custom";
+  | "custom"
+  | "month_year";
 
 export interface DashboardDateRange {
   preset: DateFilterPreset;
@@ -20,6 +21,21 @@ export interface DashboardDateRange {
   endDate?: string;
   label: string;
 }
+
+const MONTHS = [
+  { value: "1", label: "January" },
+  { value: "2", label: "February" },
+  { value: "3", label: "March" },
+  { value: "4", label: "April" },
+  { value: "5", label: "May" },
+  { value: "6", label: "June" },
+  { value: "7", label: "July" },
+  { value: "8", label: "August" },
+  { value: "9", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" },
+];
 
 interface DashboardDateFilterProps {
   value: DashboardDateRange;
@@ -47,6 +63,33 @@ function formatDisplayDate(dStr: string): string {
   } catch {
     return dStr;
   }
+}
+
+export function computeRangeForMonthYear(
+  year: number,
+  month?: number | string
+): {
+  startDate: string;
+  endDate: string;
+  label: string;
+} {
+  if (!month || month === "all") {
+    return {
+      startDate: `${year}-01-01`,
+      endDate: `${year}-12-31`,
+      label: `Year ${year}`,
+    };
+  }
+  const m = typeof month === "string" ? parseInt(month, 10) : month;
+  const mStr = String(m).padStart(2, "0");
+  const lastDay = new Date(year, m, 0).getDate();
+  const monthObj = MONTHS.find((item) => item.value === String(m));
+  const monthLabel = monthObj ? monthObj.label : `Month ${m}`;
+  return {
+    startDate: `${year}-${mStr}-01`,
+    endDate: `${year}-${mStr}-${String(lastDay).padStart(2, "0")}`,
+    label: `${monthLabel} ${year}`,
+  };
 }
 
 export function computeRangeForPreset(preset: DateFilterPreset): {
@@ -134,10 +177,37 @@ export function DashboardDateFilter({
   const [customStart, setCustomStart] = useState(value.startDate || "");
   const [customEnd, setCustomEnd] = useState(value.endDate || "");
 
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const availableYears = Array.from({ length: 8 }, (_, i) => currentYear + 1 - i);
+
+  const [selectedYear, setSelectedYear] = useState<string>(String(currentYear));
+  const [selectedMonth, setSelectedMonth] = useState<string>(String(currentMonth));
+
   useEffect(() => {
     setCustomStart(value.startDate || "");
     setCustomEnd(value.endDate || "");
   }, [value.startDate, value.endDate]);
+
+  useEffect(() => {
+    if (value.preset === "month_year" && value.startDate && value.endDate) {
+      const [startY, startM] = value.startDate.split("-");
+      const [endY, endM] = value.endDate.split("-");
+      if (startY === endY) {
+        setSelectedYear(startY);
+        if (
+          startM === "01" &&
+          endM === "12" &&
+          value.startDate.endsWith("-01") &&
+          value.endDate.endsWith("-31")
+        ) {
+          setSelectedMonth("all");
+        } else if (startM === endM) {
+          setSelectedMonth(String(parseInt(startM, 10)));
+        }
+      }
+    }
+  }, [value.preset, value.startDate, value.endDate]);
 
   // Close on click outside
   useEffect(() => {
@@ -155,12 +225,6 @@ export function DashboardDateFilter({
   const presets: { key: DateFilterPreset; label: string }[] = [
     { key: "all", label: "All Time" },
     { key: "today", label: "Today" },
-    { key: "yesterday", label: "Yesterday" },
-    { key: "this_week", label: "This Week" },
-    { key: "this_month", label: "This Month" },
-    { key: "last_month", label: "Last Month" },
-    { key: "last_30", label: "Last 30 Days" },
-    { key: "this_year", label: "This Year" },
   ];
 
   const handleSelectPreset = (preset: DateFilterPreset) => {
@@ -170,6 +234,43 @@ export function DashboardDateFilter({
       startDate: computed.startDate,
       endDate: computed.endDate,
       label: computed.label,
+    });
+    setOpen(false);
+  };
+
+  const handleYearChange = (yearStr: string) => {
+    setSelectedYear(yearStr);
+    const yr = parseInt(yearStr, 10);
+    const range = computeRangeForMonthYear(yr, selectedMonth);
+    onChange({
+      preset: "month_year",
+      startDate: range.startDate,
+      endDate: range.endDate,
+      label: range.label,
+    });
+  };
+
+  const handleMonthChange = (monthVal: string) => {
+    setSelectedMonth(monthVal);
+    const yr = selectedYear ? parseInt(selectedYear, 10) : currentYear;
+    const range = computeRangeForMonthYear(yr, monthVal);
+    onChange({
+      preset: "month_year",
+      startDate: range.startDate,
+      endDate: range.endDate,
+      label: range.label,
+    });
+  };
+
+  const handleResetToDefault = () => {
+    setSelectedYear(String(currentYear));
+    setSelectedMonth(String(currentMonth));
+    const range = computeRangeForMonthYear(currentYear, currentMonth);
+    onChange({
+      preset: "month_year",
+      startDate: range.startDate,
+      endDate: range.endDate,
+      label: range.label,
     });
     setOpen(false);
   };
@@ -205,142 +306,183 @@ export function DashboardDateFilter({
   };
 
   return (
-    <div className="relative w-full sm:w-auto" ref={popoverRef}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen(!open)}
-        className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-start gap-2 px-3.5 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer disabled:opacity-50 min-w-0"
-        title="Global date filter for dashboard metrics"
-      >
-        <div className="flex items-center gap-2 truncate min-w-0">
-          <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-          <span className="font-semibold text-slate-800 tracking-tight truncate">
-            {displayLabel()}
-          </span>
-        </div>
-        <ChevronDown
-          className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
-            open ? "rotate-180 text-blue-600" : ""
-          }`}
-        />
-      </button>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-0 sm:inset-auto sm:absolute sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:bg-transparent sm:backdrop-blur-none sm:block"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setOpen(false);
-          }}
-        >
-          <div
-            className="w-full max-w-sm sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 animate-in fade-in zoom-in-95 sm:origin-top-right duration-150"
-            onClick={(e) => e.stopPropagation()}
+    <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+      {/* Month & Year Selectors outside panel on the left side of main filters button */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Month Dropdown */}
+        <div className="relative">
+          <select
+            value={selectedMonth}
+            disabled={disabled}
+            onChange={(e) => handleMonthChange(e.target.value)}
+            className="appearance-none pl-3 pr-7 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:opacity-50"
+            title="Filter by Month"
           >
-            <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
-              <div>
-                <span className="text-xs font-bold text-slate-900 block">
-                  Dashboard Date Filter
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  Filters KPIs & Overview metrics
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {value.preset !== "all" && (
+            <option value="all">All Months</option>
+            {MONTHS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+
+        {/* Year Dropdown */}
+        <div className="relative">
+          <select
+            value={selectedYear}
+            disabled={disabled}
+            onChange={(e) => handleYearChange(e.target.value)}
+            className="appearance-none pl-3 pr-7 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:opacity-50"
+            title="Filter by Year"
+          >
+            {availableYears.map((yr) => (
+              <option key={yr} value={yr}>
+                {yr}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+      </div>
+
+      {/* Main Filter Button & Popover */}
+      <div className="relative w-full sm:w-auto" ref={popoverRef}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(!open)}
+          className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-start gap-2 px-3.5 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer disabled:opacity-50 min-w-0"
+          title="Global date filter for dashboard metrics"
+        >
+          <div className="flex items-center gap-2 truncate min-w-0">
+            <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="font-semibold text-slate-800 tracking-tight truncate">
+              {displayLabel()}
+            </span>
+          </div>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
+              open ? "rotate-180 text-blue-600" : ""
+            }`}
+          />
+        </button>
+
+        {open && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 sm:p-0 sm:inset-auto sm:absolute sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:bg-transparent sm:backdrop-blur-none sm:block"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setOpen(false);
+            }}
+          >
+            <div
+              className="w-full max-w-sm sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 animate-in fade-in zoom-in-95 sm:origin-top-right duration-150 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">
+                    Dashboard Date Filter
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Filters KPIs & Overview metrics
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleSelectPreset("all")}
+                    onClick={handleResetToDefault}
                     className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
                     Reset
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="sm:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="sm:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="grid grid-cols-2 gap-1.5 mb-3.5">
+                {presets.map((p) => {
+                  const isActive = value.preset === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => handleSelectPreset(p.key)}
+                      className={`flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shadow-2xs"
+                          : "bg-slate-50/80 hover:bg-slate-100/80 text-slate-700 hover:text-slate-900"
+                      }`}
+                    >
+                      <span>{p.label}</span>
+                      {isActive && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Date Range */}
+              <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  Custom Date Range
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                      From Date
+                    </label>
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                      To Date
+                    </label>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyCustom}
+                    disabled={!customStart && !customEnd}
+                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed rounded-lg shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Apply Range
+                  </button>
+                </div>
               </div>
             </div>
-
-          {/* Quick Presets */}
-          <div className="grid grid-cols-2 gap-1.5 mb-3.5">
-            {presets.map((p) => {
-              const isActive = value.preset === p.key;
-              return (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => handleSelectPreset(p.key)}
-                  className={`flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shadow-2xs"
-                      : "bg-slate-50/80 hover:bg-slate-100/80 text-slate-700 hover:text-slate-900"
-                  }`}
-                >
-                  <span>{p.label}</span>
-                  {isActive && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                </button>
-              );
-            })}
           </div>
-
-          {/* Custom Date Range */}
-          <div className="pt-3 border-t border-slate-100 space-y-2.5">
-            <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-              Custom Date Range
-            </span>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[10px] font-medium text-slate-500 mb-1">
-                  From Date
-                </label>
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-slate-500 mb-1">
-                  To Date
-                </label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleApplyCustom}
-                disabled={!customStart && !customEnd}
-                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed rounded-lg shadow-2xs transition-colors cursor-pointer"
-              >
-                Apply Range
-              </button>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
-    )}
     </div>
   );
 }

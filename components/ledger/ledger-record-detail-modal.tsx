@@ -106,6 +106,11 @@ export function LedgerRecordDetailModal({
       ? record.total_premium
       : parseFloat(String(record.total_premium || 0));
 
+  const discount =
+    typeof record.discount === "number"
+      ? record.discount
+      : parseFloat(String(record.discount || 0));
+
   const paidAmount =
     typeof record.paid_amount === "number"
       ? record.paid_amount
@@ -169,6 +174,8 @@ export function LedgerRecordDetailModal({
       id: record.id,
       policy_number: record.policy_number,
       total_premium: totalPremium,
+      discount: discount,
+      net_premium: record.net_premium || Math.max(0, totalPremium - discount),
       paid_amount: paidAmount,
       total_paid: paidAmount,
       outstanding: outstanding,
@@ -285,8 +292,8 @@ export function LedgerRecordDetailModal({
             </div>
           </div>
 
-          {/* 3 Financial Metrics Cards */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Financial Metrics Cards */}
+          <div className={`grid gap-3 ${discount > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
             <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs text-center">
               <span className="block text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
                 Total Premium
@@ -295,6 +302,17 @@ export function LedgerRecordDetailModal({
                 ₹{totalPremium.toLocaleString("en-IN")}
               </span>
             </div>
+
+            {discount > 0 && (
+              <div className="bg-amber-50/60 rounded-xl p-3.5 border border-amber-200/80 shadow-2xs text-center">
+                <span className="block text-[10px] sm:text-xs font-medium text-amber-700 uppercase tracking-wider mb-1">
+                  Discount Given
+                </span>
+                <span className="text-sm sm:text-lg font-bold text-amber-700">
+                  ₹{discount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
 
             <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs text-center">
               <span className="block text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
@@ -377,7 +395,8 @@ export function LedgerRecordDetailModal({
                     <tr>
                       <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3">Method</th>
-                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">Amount Received</th>
+                      <th className="py-2.5 px-3">Discount</th>
                       <th className="py-2.5 px-3">Notes / Ref</th>
                       <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
@@ -388,6 +407,10 @@ export function LedgerRecordDetailModal({
                         typeof tx.amount === "number"
                           ? tx.amount
                           : parseFloat(String(tx.amount || 0));
+                      const txDiscount =
+                        typeof tx.discount === "number"
+                          ? tx.discount
+                          : parseFloat(String(tx.discount || 0));
                       const dateDisplay = formatDate(tx.payment_date || tx.date);
                       const method = tx.payment_method || tx.payment_mode || "Cash";
                       const noteText = tx.notes || tx.note || "—";
@@ -404,6 +427,9 @@ export function LedgerRecordDetailModal({
                           </td>
                           <td className="py-2.5 px-3 font-bold text-emerald-600 whitespace-nowrap">
                             ₹{amt.toLocaleString("en-IN")}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-amber-700 whitespace-nowrap">
+                            {txDiscount > 0 ? `₹${txDiscount.toLocaleString("en-IN")}` : "—"}
                           </td>
                           <td className="py-2.5 px-3 text-slate-500 max-w-[180px] truncate" title={noteText}>
                             {noteText}

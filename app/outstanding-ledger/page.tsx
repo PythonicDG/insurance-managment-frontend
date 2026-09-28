@@ -260,6 +260,7 @@ export default function OutstandingLedgerPage() {
       "Insurance Company",
       "Policy Number",
       "Total Premium",
+      "Discount",
       "Paid Amount",
       "Outstanding",
       "Status",
@@ -272,6 +273,7 @@ export default function OutstandingLedgerPage() {
       `"${r.insurance_company_name || ""}"`,
       `"${r.policy_number || ""}"`,
       r.total_premium,
+      r.discount || 0,
       r.paid_amount,
       r.outstanding,
       r.status,
@@ -538,6 +540,7 @@ export default function OutstandingLedgerPage() {
                   <th className="py-3.5 px-4">VEHICLE NUMBER</th>
                   <th className="py-3.5 px-4">INSURANCE COMPANY</th>
                   <th className="py-3.5 px-4">TOTAL PREMIUM</th>
+                  <th className="py-3.5 px-4">DISCOUNT</th>
                   <th className="py-3.5 px-4">PAID AMOUNT</th>
                   <th className="py-3.5 px-4">OUTSTANDING</th>
                   <th className="py-3.5 px-4">STATUS</th>
@@ -568,6 +571,9 @@ export default function OutstandingLedgerPage() {
                         <div className="h-3.5 bg-slate-200 rounded w-14" />
                       </td>
                       <td className="py-4 px-4">
+                        <div className="h-3.5 bg-slate-200 rounded w-14" />
+                      </td>
+                      <td className="py-4 px-4">
                         <div className="h-3.5 bg-slate-200 rounded w-16" />
                       </td>
                       <td className="py-4 px-4">
@@ -580,7 +586,7 @@ export default function OutstandingLedgerPage() {
                   ))
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <td colSpan={10} className="py-12 text-center text-slate-400">
                       <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-sm font-semibold text-slate-700">No Records Found</p>
                       <p className="text-xs text-slate-400 mt-1">
@@ -636,12 +642,17 @@ export default function OutstandingLedgerPage() {
                           {formatCurrency(r.total_premium)}
                         </td>
 
-                        {/* 6. Paid Amount */}
+                        {/* 6. Discount */}
+                        <td className="py-3.5 px-4 font-medium text-amber-700 whitespace-nowrap">
+                          {Number(r.discount || 0) > 0 ? formatCurrency(r.discount) : "—"}
+                        </td>
+
+                        {/* 7. Paid Amount */}
                         <td className="py-3.5 px-4 font-medium text-slate-900 whitespace-nowrap">
                           {formatCurrency(r.paid_amount)}
                         </td>
 
-                        {/* 7. Outstanding */}
+                        {/* 8. Outstanding */}
                         <td className="py-3.5 px-4 font-bold text-red-500 whitespace-nowrap">
                           {formatCurrency(r.outstanding)}
                         </td>

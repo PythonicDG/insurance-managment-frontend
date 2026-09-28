@@ -13,6 +13,7 @@ interface RecordPaymentModalProps {
     recordId: number;
     paymentType: "full" | "partial";
     amount: number;
+    discount?: number;
     paymentMode: string;
     paymentDate: string;
     remark: string;
@@ -44,9 +45,10 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
   const outstandingBalance = Math.max(0, isNaN(rawBalance) ? 0 : rawBalance);
   const isFullyPaid = outstandingBalance <= 0;
 
-  const [paymentType, setPaymentType] = useState<"full" | "partial">("partial");
+  const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
+  const [discount, setDiscount] = useState<number | string>(0);
   const [amount, setAmount] = useState<number | string>(() =>
-    outstandingBalance > 0 ? Math.min(outstandingBalance, Math.round(outstandingBalance * 0.6)) : 0
+    outstandingBalance > 0 ? outstandingBalance : 0
   );
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [paymentDate, setPaymentDate] = useState(() => {
@@ -56,19 +58,39 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const numDiscount = parseFloat(String(discount)) || 0;
   const numAmount = parseFloat(String(amount)) || 0;
-  const remainingBalance = Math.max(0, outstandingBalance - numAmount);
+  const maxPayable = Math.max(0, outstandingBalance - numDiscount);
+  const remainingBalance = Math.max(0, outstandingBalance - numDiscount - numAmount);
 
   const handleTypeChange = (type: "full" | "partial") => {
     if (isFullyPaid) return;
     setPaymentType(type);
     if (type === "full") {
-      setAmount(outstandingBalance);
+      setAmount(maxPayable);
       setError("");
     } else {
-      if (Number(amount) >= outstandingBalance && outstandingBalance > 0) {
-        setAmount(Math.round(outstandingBalance * 0.5) || 1);
+      if (Number(amount) >= maxPayable && maxPayable > 0) {
+        setAmount(Math.round(maxPayable * 0.5) || 1);
         setError("");
+      }
+    }
+  };
+
+  const handleDiscountChange = (val: string) => {
+    setDiscount(val);
+    const disc = parseFloat(val) || 0;
+    if (disc < 0) {
+      setError("Discount cannot be negative.");
+    } else if (disc > outstandingBalance) {
+      setError(`Discount cannot exceed outstanding balance of ₹${outstandingBalance.toLocaleString("en-IN")}`);
+    } else {
+      setError("");
+      const newMaxPayable = Math.max(0, outstandingBalance - disc);
+      if (paymentType === "full") {
+        setAmount(newMaxPayable);
+      } else if (Number(amount) > newMaxPayable) {
+        setAmount(newMaxPayable);
       }
     }
   };
@@ -76,15 +98,15 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
   const handleAmountChange = (val: string) => {
     setAmount(val);
     const parsed = parseFloat(val) || 0;
-    if (parsed > outstandingBalance) {
+    if (parsed > maxPayable) {
       setError(
-        `Amount cannot exceed outstanding balance of ₹${outstandingBalance.toLocaleString("en-IN")}`
+        `Amount cannot exceed payable balance of ₹${maxPayable.toLocaleString("en-IN")}`
       );
     } else {
       setError("");
-      if (parsed < outstandingBalance && paymentType === "full") {
+      if (parsed < maxPayable && paymentType === "full") {
         setPaymentType("partial");
-      } else if (parsed === outstandingBalance && paymentType === "partial" && parsed > 0) {
+      } else if (parsed === maxPayable && paymentType === "partial" && parsed > 0) {
         setPaymentType("full");
       }
     }
@@ -96,14 +118,23 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
       setError("This policy is fully paid. No further payments can be added.");
       return;
     }
-    if (numAmount <= 0) {
-      setError("Please enter a valid payment amount greater than zero.");
+    if (numDiscount > 0 && numDiscount > outstandingBalance) {
+      setError(`Discount cannot exceed outstanding balance of ₹${outstandingBalance.toLocaleString("en-IN")}`);
       return;
     }
-    if (numAmount > outstandingBalance) {
+    const maxPayable = Math.max(0, outstandingBalance - numDiscount);
+    if (numAmount < 0) {
+      setError("Please enter a valid payment amount.");
+      return;
+    }
+    if (numAmount > maxPayable) {
       setError(
-        `Amount cannot exceed outstanding balance of ₹${outstandingBalance.toLocaleString("en-IN")}`
+        `Amount cannot exceed payable balance of ₹${maxPayable.toLocaleString("en-IN")}`
       );
+      return;
+    }
+    if (numAmount === 0 && numDiscount <= 0) {
+      setError("Please enter a valid payment amount greater than zero.");
       return;
     }
 
@@ -114,6 +145,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
         recordId: record.id,
         paymentType,
         amount: numAmount,
+        discount: numDiscount,
         paymentMode,
         paymentDate,
         remark,
@@ -132,19 +164,19 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-[420px] overflow-hidden animate-in zoom-in-95 duration-150"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-[440px] flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[88vh] overflow-hidden animate-in zoom-in-95 duration-150 my-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="record-payment-title"
       >
         {/* Modal Header */}
-        <div className="px-6 pt-5 pb-3 flex items-center justify-between">
+        <div className="px-5 sm:px-6 pt-4 sm:pt-5 pb-3 flex items-center justify-between shrink-0">
           <h2
             id="record-payment-title"
             className="text-base sm:text-lg font-bold text-slate-900 tracking-tight"
@@ -162,7 +194,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
         </div>
 
         {/* Record Overview Sub-header */}
-        <div className="px-6 py-2.5 bg-slate-50/70 border-y border-slate-100 flex items-center justify-between text-xs">
+        <div className="px-5 sm:px-6 py-2.5 bg-slate-50/70 border-y border-slate-100 flex items-center justify-between text-xs shrink-0">
           <span className="font-semibold text-slate-700 truncate mr-2">
             {customerName} • {vehicleNumber}
           </span>
@@ -201,7 +233,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-3.5 flex-1 overflow-y-auto">
             {/* Payment Type Segmented Switch */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -211,7 +243,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                 <button
                   type="button"
                   onClick={() => handleTypeChange("full")}
-                  className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     paymentType === "full"
                       ? "bg-blue-600 text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -222,7 +254,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                 <button
                   type="button"
                   onClick={() => handleTypeChange("partial")}
-                  className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     paymentType === "partial"
                       ? "bg-blue-600 text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -233,10 +265,35 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
               </div>
             </div>
 
+            {/* Discount Field (Editable on all payments) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Discount (₹)
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm font-semibold">
+                  ₹
+                </div>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  max={outstandingBalance}
+                  value={discount}
+                  onChange={(e) => handleDiscountChange(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3.5 py-2 text-sm font-semibold rounded-xl bg-white border border-slate-200 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Upfront discount in ₹ deducted from payable balance.
+              </p>
+            </div>
+
             {/* Amount Field */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Amount <span className="text-red-500">*</span>
+                Amount to Collect <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm font-semibold">
@@ -348,7 +405,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                   submitting ||
                   isFullyPaid ||
                   numAmount <= 0 ||
-                  numAmount > outstandingBalance
+                  numAmount > maxPayable
                 }
                 className="px-5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center min-w-[110px]"
               >
