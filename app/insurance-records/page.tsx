@@ -492,34 +492,35 @@ function InsuranceRecordsContent() {
     return `₹${Math.round(num).toLocaleString("en-IN")}`;
   };
 
-  // Status Badge Helper
-  const renderStatusBadge = (status?: string, daysLeft?: number) => {
-    const s = (status || "").toLowerCase();
-    if (s === "active") {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-          Active
-        </span>
-      );
-    }
-    if (s === "expiring_soon" || s === "expiring soon") {
-      let label = "Expiring Soon";
-      if (typeof daysLeft === "number") {
-        if (daysLeft === 0) label = "Expires Today";
-        else if (daysLeft === 1) label = "Expires Tomorrow";
-        else if (daysLeft > 1) label = `Expiring (${daysLeft}d)`;
+  // Helper to determine if an insurance record is expired
+  const isRecordExpired = (record: InsuranceRecordItem): boolean => {
+    if (record.is_expired === true) return true;
+    const s = (record.status || "").toLowerCase();
+    if (s === "expired") return true;
+    if (typeof record.days_left === "number" && record.days_left < 0) return true;
+    if (record.policy_expiry_date) {
+      try {
+        const parts = record.policy_expiry_date.split("-");
+        let expiryDate: Date;
+        if (parts.length === 3) {
+          expiryDate =
+            parts[0].length === 4
+              ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+              : new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        } else {
+          expiryDate = new Date(record.policy_expiry_date);
+        }
+        if (!isNaN(expiryDate.getTime())) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          expiryDate.setHours(0, 0, 0, 0);
+          return expiryDate < today;
+        }
+      } catch {
+        return false;
       }
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
-          {label}
-        </span>
-      );
     }
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
-        Expired
-      </span>
-    );
+    return false;
   };
 
   // Payment Recording
@@ -717,6 +718,7 @@ function InsuranceRecordsContent() {
 
     const headers = [
       "Insurance Start Date",
+      "Insurance End Date",
       "Customer Name",
       "Phone",
       "Alternative Phone",
@@ -725,7 +727,6 @@ function InsuranceRecordsContent() {
       "Total Premium",
       "Paid Amount",
       "Balance",
-      "Status",
     ];
 
     const escapeCsv = (val: string | number | undefined | null) => {
@@ -734,17 +735,21 @@ function InsuranceRecordsContent() {
     };
 
     const rows = records.map((r) => {
-      const rawDate = r.policy_start_date || "";
-      const formattedDate = rawDate ? formatDisplayDate(rawDate) : "";
-      // Prepend ="..." so spreadsheet applications like Excel treat the date as text
-      // and do not auto-convert it to a date serial that displays as ###### due to cell width
-      const startDateCell = formattedDate ? `="${formattedDate}"` : '""';
+      const rawStartDate = r.policy_start_date || "";
+      const formattedStartDate = rawStartDate ? formatDisplayDate(rawStartDate) : "";
+      const startDateCell = formattedStartDate ? `="${formattedStartDate}"` : '""';
+
+      const rawEndDate = r.policy_expiry_date || "";
+      const formattedEndDate = rawEndDate ? formatDisplayDate(rawEndDate) : "";
+      const endDateCell = formattedEndDate ? `="${formattedEndDate}"` : '""';
+
       const phoneCell = r.customer?.phone ? `="${r.customer.phone}"` : '""';
       const altPhone = r.alternative_mobile_number || r.customer?.alternative_mobile_number;
       const altPhoneCell = altPhone ? `="${altPhone}"` : '""';
 
       return [
         startDateCell,
+        endDateCell,
         escapeCsv(r.customer?.name),
         phoneCell,
         altPhoneCell,
@@ -759,7 +764,6 @@ function InsuranceRecordsContent() {
         typeof r.balance === "number"
           ? r.balance
           : parseFloat(String(r.balance || 0)) || 0,
-        escapeCsv(r.status),
       ];
     });
 
@@ -858,6 +862,8 @@ function InsuranceRecordsContent() {
       .map((r, idx) => {
         const rawDate = r.policy_start_date || "";
         const displayDate = rawDate ? formatDisplayDate(rawDate) : "—";
+        const rawEndDate = r.policy_expiry_date || "";
+        const displayEndDate = rawEndDate ? formatDisplayDate(rawEndDate) : "—";
         const customerName = r.customer?.name?.trim() || "—";
         const address = r.customer?.address?.trim() || "—";
         const phone = r.customer?.phone?.trim() || "—";
@@ -877,6 +883,7 @@ function InsuranceRecordsContent() {
           <tr>
             <td class="col-idx">${idx + 1}</td>
             <td class="col-date">${displayDate}</td>
+            <td class="col-date">${displayEndDate}</td>
             <td class="col-name">${customerName}</td>
             <td class="col-addr">${address}</td>
             <td class="col-phone">
@@ -1122,6 +1129,7 @@ function InsuranceRecordsContent() {
                 <tr>
                   <th class="col-idx">#</th>
                   <th class="col-date">Insurance Start Date</th>
+                  <th class="col-date">Insurance End Date</th>
                   <th class="col-name">Customer Name</th>
                   <th class="col-addr">Address</th>
                   <th class="col-phone">Mobile Number</th>
@@ -1857,6 +1865,15 @@ function InsuranceRecordsContent() {
                       </th>
                       <th
                         className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
+                        onClick={() => handleSort("policy_expiry_date")}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span>INSURANCE END DATE</span>
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </th>
+                      <th
+                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("customer__name")}
                       >
                         <div className="flex items-center gap-1">
@@ -1892,43 +1909,62 @@ function InsuranceRecordsContent() {
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
-                      <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
-                        onClick={() => handleSort("policy_expiry_date")}
-                      >
-                        <div className="flex items-center gap-1">
-                          <span>STATUS</span>
-                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                        </div>
-                      </th>
                       <th className="py-3 px-4 text-center">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {records.map((record) => {
                       const totalPrem = Number(record.total_premium) || 0;
+                      const isExpired = isRecordExpired(record);
 
                       return (
                         <tr
                           key={record.id}
                           onClick={() => handleViewRecord(record)}
-                          className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
+                          className={`hover:bg-blue-50/40 cursor-pointer transition-colors group ${
+                            isExpired ? "text-red-600" : ""
+                          }`}
                         >
                           {/* Insurance Start Date */}
-                          <td className="py-3.5 px-4 font-normal text-slate-600 whitespace-nowrap">
+                          <td
+                            className={`py-3.5 px-4 font-normal whitespace-nowrap ${
+                              isExpired ? "text-red-600" : "text-slate-600"
+                            }`}
+                          >
                             {formatDisplayDate(record.policy_start_date)}
                           </td>
 
+                          {/* Insurance End Date */}
+                          <td
+                            className={`py-3.5 px-4 font-normal whitespace-nowrap ${
+                              isExpired ? "text-red-600" : "text-slate-600"
+                            }`}
+                          >
+                            {formatDisplayDate(record.policy_expiry_date)}
+                          </td>
+
                           {/* Customer Name */}
-                          <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                          <td
+                            className={`py-3.5 px-4 font-bold whitespace-nowrap ${
+                              isExpired ? "text-red-600" : "text-slate-900"
+                            }`}
+                          >
                             {record.customer?.name || "—"}
                           </td>
 
                           {/* Phone */}
-                          <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap font-medium">
+                          <td
+                            className={`py-3.5 px-4 whitespace-nowrap font-medium ${
+                              isExpired ? "text-red-600" : "text-slate-500"
+                            }`}
+                          >
                             <div>{record.customer?.phone || "—"}</div>
                             {(record.alternative_mobile_number || record.customer?.alternative_mobile_number) && (
-                              <div className="text-[10px] text-slate-400 font-normal">
+                              <div
+                                className={`text-[10px] font-normal ${
+                                  isExpired ? "text-red-500" : "text-slate-400"
+                                }`}
+                              >
                                 Alt: {record.alternative_mobile_number || record.customer?.alternative_mobile_number}
                               </div>
                             )}
@@ -1936,29 +1972,44 @@ function InsuranceRecordsContent() {
 
                           {/* Vehicle Number (Pill badge) */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className="inline-block px-2.5 py-1 bg-slate-100 border border-slate-200/80 rounded-md font-mono text-[11px] font-semibold text-slate-800">
+                            <span
+                              className={`inline-block px-2.5 py-1 rounded-md font-mono text-[11px] font-semibold ${
+                                isExpired
+                                  ? "bg-red-50 border border-red-200 text-red-600"
+                                  : "bg-slate-100 border border-slate-200/80 text-slate-800"
+                              }`}
+                            >
                               {record.vehicle?.vehicle_number || "—"}
                             </span>
                           </td>
 
                           {/* Insurance Company */}
-                          <td className="py-3.5 px-4 text-slate-700 font-medium whitespace-nowrap">
+                          <td
+                            className={`py-3.5 px-4 font-medium whitespace-nowrap ${
+                              isExpired ? "text-red-600" : "text-slate-700"
+                            }`}
+                          >
                             {record.insurance_company?.name || "—"}
                           </td>
 
                           {/* Total Premium */}
-                          <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                          <td
+                            className={`py-3.5 px-4 font-bold whitespace-nowrap ${
+                              isExpired ? "text-red-600" : "text-slate-900"
+                            }`}
+                          >
                             <div>{formatCurrency(totalPrem)}</div>
                             {Number(record.discount || 0) > 0 && (
-                              <div className="text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200/60 rounded px-1.5 py-0.5 inline-block mt-0.5">
+                              <div
+                                className={`text-[10px] font-semibold rounded px-1.5 py-0.5 inline-block mt-0.5 ${
+                                  isExpired
+                                    ? "text-red-700 bg-red-50 border border-red-200/60"
+                                    : "text-amber-700 bg-amber-50 border border-amber-200/60"
+                                }`}
+                              >
                                 Disc: ₹{Number(record.discount).toLocaleString("en-IN")}
                               </div>
                             )}
-                          </td>
-
-                          {/* Status */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {renderStatusBadge(record.status, record.days_left)}
                           </td>
 
                           {/* Actions: Edit, Trash, Add Payment */}
