@@ -34,6 +34,10 @@ import {
 } from "@/lib/api";
 import { RecordPaymentModal } from "@/components/insurance/record-payment-modal";
 import { RenewPolicyModal } from "@/components/insurance/renew-policy-modal";
+import {
+  getPolicyLifecycleStatus,
+  PolicyLifecycleBadge,
+} from "@/components/insurance/policy-lifecycle-badge";
 import { InsuranceRecordDetail } from "@/components/insurance/insurance-record-detail";
 import {
   MobileFiltersModal,
@@ -122,7 +126,9 @@ function InsuranceRecordsContent() {
       const lower = statusParam.toLowerCase();
       if (lower === "expiring_soon" || lower === "expiring") return "Expiring Soon";
       if (lower === "active") return "Active";
-      if (lower === "expired") return "Expired";
+      if (lower === "expired" || lower === "needs_renewal") return "Needs Renewal";
+      if (lower === "scheduled") return "Scheduled";
+      if (lower === "renewed" || lower === "history") return "Renewed";
     }
     return "All Statuses";
   });
@@ -153,10 +159,13 @@ function InsuranceRecordsContent() {
   const handleRenewSuccess = (newRecord: InsuranceRecordItem) => {
     setIsRenewModalOpen(false);
     setRecordToRenew(null);
+    const isScheduled = newRecord.lifecycle_status === "scheduled";
     showToast(
       "success",
-      "Policy Renewed",
-      `Policy ${newRecord.policy_number} has been created as the active policy.`
+      isScheduled ? "Renewal Scheduled" : "Policy Renewed",
+      isScheduled
+        ? `Policy ${newRecord.policy_number} will become current on ${formatDisplayDate(newRecord.policy_start_date)}.`
+        : `Policy ${newRecord.policy_number} is now the current policy.`
     );
     fetchRecords(currentPage);
     fetchSummaryCounts();
@@ -252,10 +261,13 @@ function InsuranceRecordsContent() {
         : (res as { results?: InsuranceRecordItem[] })?.results || [];
 
       const augmented = all.map(augmentRecordWithPayments);
-      const active = augmented.filter((r) => (r.status || "").toLowerCase() === "active").length;
+      const active = augmented.filter((r) => {
+        const status = getPolicyLifecycleStatus(r);
+        return ["current", "expiring_today", "expiring_soon"].includes(status);
+      }).length;
       const expiringSoon = augmented.filter((r) => {
-        const s = (r.status || "").toLowerCase();
-        return s === "expiring_soon" || s === "expiring soon";
+        const s = getPolicyLifecycleStatus(r);
+        return s === "expiring_soon" || s === "expiring_today";
       }).length;
       const outstanding = augmented.filter((r) => (r.balance ?? 0) > 0).length;
 
@@ -291,7 +303,7 @@ function InsuranceRecordsContent() {
         }
 
         if (selectedStatus !== "All Statuses") {
-          params.status = selectedStatus.toLowerCase().replace(" ", "_");
+          params.status = selectedStatus.toLowerCase().replace(/\s+/g, "_");
         }
 
         if (fromDate.trim()) {
@@ -373,8 +385,14 @@ function InsuranceRecordsContent() {
       } else if (lower === "active") {
         setSelectedStatus("Active");
         setCurrentPage(1);
-      } else if (lower === "expired") {
-        setSelectedStatus("Expired");
+      } else if (lower === "expired" || lower === "needs_renewal") {
+        setSelectedStatus("Needs Renewal");
+        setCurrentPage(1);
+      } else if (lower === "scheduled") {
+        setSelectedStatus("Scheduled");
+        setCurrentPage(1);
+      } else if (lower === "renewed" || lower === "history") {
+        setSelectedStatus("Renewed");
         setCurrentPage(1);
       }
     }
@@ -494,6 +512,7 @@ function InsuranceRecordsContent() {
 
   // Helper to determine if an insurance record is expired
   const isRecordExpired = (record: InsuranceRecordItem): boolean => {
+    if (record.lifecycle_status) return record.lifecycle_status === "expired";
     if (record.is_expired === true) return true;
     const s = (record.status || "").toLowerCase();
     if (s === "expired") return true;
@@ -1610,7 +1629,9 @@ function InsuranceRecordsContent() {
                 count: expiringSoonCount,
                 isExpiring: true,
               },
-              { label: "Expired", value: "Expired" },
+              { label: "Needs Renewal", value: "Needs Renewal" },
+              { label: "Scheduled", value: "Scheduled" },
+              { label: "Renewed History", value: "Renewed" },
             ].map((tab) => {
               const isSelected = selectedStatus === tab.value;
               return (
@@ -1744,7 +1765,9 @@ function InsuranceRecordsContent() {
                     <option value="All Statuses">All Statuses</option>
                     <option value="Active">Active</option>
                     <option value="Expiring Soon">Expiring Soon (10 Days)</option>
-                    <option value="Expired">Expired</option>
+                    <option value="Needs Renewal">Needs Renewal</option>
+                    <option value="Scheduled">Scheduled Renewals</option>
+                    <option value="Renewed">Renewed History</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
                     <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
@@ -1873,6 +1896,7 @@ function InsuranceRecordsContent() {
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
+                      <th className="py-3 px-4">POLICY STATUS</th>
                       <th
                         className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("customer__name")}
@@ -1942,6 +1966,10 @@ function InsuranceRecordsContent() {
                             }`}
                           >
                             {formatDisplayDate(record.policy_expiry_date)}
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <PolicyLifecycleBadge record={record} compact />
                           </td>
 
                           {/* Customer Name */}
@@ -2032,12 +2060,18 @@ function InsuranceRecordsContent() {
                               {/* Renew */}
                               <button
                                 type="button"
+                                disabled={Boolean(
+                                  record.renewed_policy_id ||
+                                    ["scheduled", "renewed"].includes(
+                                      getPolicyLifecycleStatus(record)
+                                    )
+                                )}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleOpenRenewModal(record);
                                 }}
-                                className="p-1 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
-                                title="Renew Policy"
+                                className="p-1 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={record.renewed_policy_id ? "Policy already renewed" : "Renew Policy"}
                               >
                                 <RefreshCw className="w-4 h-4" />
                               </button>

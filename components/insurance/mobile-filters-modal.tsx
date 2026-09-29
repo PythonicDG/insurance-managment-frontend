@@ -479,13 +479,27 @@ function MobileFiltersDialog({
                       ),
                     },
                     {
-                      label: "Expired",
-                      value: "Expired",
+                      label: "Needs Renewal",
+                      value: "Needs Renewal",
                       badge: (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-600 border border-rose-200/60">
-                          Expired
+                          Follow up
                         </span>
                       ),
+                    },
+                    {
+                      label: "Scheduled Renewals",
+                      value: "Scheduled",
+                      badge: (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200/60">
+                          Future
+                        </span>
+                      ),
+                    },
+                    {
+                      label: "Renewed History",
+                      value: "Renewed",
+                      badge: null,
                     },
                   ].map((item) => {
                     const isSelected = draftStatus === item.value;

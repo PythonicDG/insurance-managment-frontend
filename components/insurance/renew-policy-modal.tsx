@@ -110,6 +110,14 @@ export function RenewPolicyModal({
 
   if (!isOpen || !record) return null;
 
+  const today = getTodayDateString();
+  const isScheduledRenewal = Boolean(startDate && startDate > today);
+  const hasFutureOverlap = Boolean(
+    isScheduledRenewal &&
+      record.policy_expiry_date &&
+      startDate <= record.policy_expiry_date
+  );
+
   const handleStartDateChange = (val: string) => {
     setStartDate(val);
     if (val) {
@@ -137,6 +145,14 @@ export function RenewPolicyModal({
 
     if (!startDate || !endDate) {
       setErrorMsg("Please select valid policy start and end dates.");
+      return;
+    }
+    if (hasFutureOverlap) {
+      setErrorMsg(
+        `A scheduled renewal must start after the current policy expires on ${formatDisplayDate(
+          record.policy_expiry_date
+        )}.`
+      );
       return;
     }
 
@@ -191,7 +207,7 @@ export function RenewPolicyModal({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Renewing will archive the existing policy to history and create a new active policy.
+                The policy dates decide whether this renewal becomes current now or is scheduled.
               </p>
             </div>
           </div>
@@ -206,16 +222,45 @@ export function RenewPolicyModal({
         </div>
 
         {/* Existing Policy Summary Notice */}
-        <div className="mx-6 mt-4 p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
-          <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        <div
+          className={`mx-4 sm:mx-6 mt-4 p-3 rounded-xl flex items-start gap-2.5 text-xs border ${
+            isScheduledRenewal
+              ? "bg-blue-50/80 border-blue-200 text-blue-900"
+              : "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+          }`}
+        >
+          <ShieldCheck
+            className={`w-4 h-4 shrink-0 mt-0.5 ${
+              isScheduledRenewal ? "text-blue-600" : "text-emerald-600"
+            }`}
+          />
           <div className="leading-relaxed">
             <span className="font-bold">Current Policy #{record.policy_number}</span> (
             {record.insurance_company?.name || "Insurer"}, expires{" "}
-            {formatDisplayDate(record.policy_expiry_date)}) will be preserved in history.
-            The new policy below will become the active policy for{" "}
-            <strong>{record.vehicle?.vehicle_number}</strong>.
+            {formatDisplayDate(record.policy_expiry_date)}) will be preserved. {" "}
+            {isScheduledRenewal ? (
+              <>
+                It remains current, while the new policy is marked <strong>Scheduled</strong>{" "}
+                until {formatDisplayDate(startDate)}.
+              </>
+            ) : (
+              <>
+                The new policy becomes <strong>Current</strong> immediately and this policy
+                moves to <strong>Renewed</strong> history.
+              </>
+            )}
           </div>
         </div>
+
+        {hasFutureOverlap && (
+          <div className="mx-4 sm:mx-6 mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              This future start date overlaps the current policy. Choose a date after{" "}
+              {formatDisplayDate(record.policy_expiry_date)}.
+            </span>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="mx-6 mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
@@ -225,7 +270,7 @@ export function RenewPolicyModal({
         )}
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[calc(85vh-12rem)] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[calc(85vh-12rem)] overflow-y-auto">
           {/* Customer & Vehicle Info (read-only context) */}
           <div className="grid grid-cols-2 gap-3 bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs">
             <div>
@@ -392,7 +437,7 @@ export function RenewPolicyModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || hasFutureOverlap}
               className="px-5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-w-[140px]"
             >
               {submitting ? (
@@ -403,7 +448,7 @@ export function RenewPolicyModal({
               ) : (
                 <>
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Confirm Renewal</span>
+                  <span>{isScheduledRenewal ? "Schedule Renewal" : "Confirm Renewal"}</span>
                 </>
               )}
             </button>

@@ -309,6 +309,10 @@ function AddInsuranceRecordForm() {
           setVehicleError(
             `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
           );
+        } else if (res.has_scheduled_renewal && res.scheduled_record && !isEditMode) {
+          setVehicleError(
+            `Renewal policy #${res.scheduled_record.policy_number} is already scheduled for vehicle "${normalized}".`
+          );
         } else {
           setVehicleError("");
         }
@@ -364,6 +368,10 @@ function AddInsuranceRecordForm() {
       if (res.has_active_policy && res.active_record && !isEditMode) {
         setVehicleError(
           `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
+        );
+      } else if (res.has_scheduled_renewal && res.scheduled_record && !isEditMode) {
+        setVehicleError(
+          `Renewal policy #${res.scheduled_record.policy_number} is already scheduled for vehicle "${normalized}".`
         );
       } else {
         setVehicleError("");
@@ -512,6 +520,12 @@ function AddInsuranceRecordForm() {
       );
       return;
     }
+    if (vehicleCheck?.has_scheduled_renewal && vehicleCheck.scheduled_record && !isEditMode) {
+      setErrorMessage(
+        `Renewal policy #${vehicleCheck.scheduled_record.policy_number} is already scheduled for vehicle "${normalizedVeh}".`
+      );
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -541,6 +555,14 @@ function AddInsuranceRecordForm() {
         if (vCheck.has_active_policy && vCheck.active_record) {
           setVehicleCheck(vCheck);
           const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update the existing policy.`;
+          setVehicleError(msg);
+          setErrorMessage(msg);
+          setSubmitting(false);
+          return;
+        }
+        if (vCheck.has_scheduled_renewal && vCheck.scheduled_record) {
+          setVehicleCheck(vCheck);
+          const msg = `Renewal policy #${vCheck.scheduled_record.policy_number} is already scheduled for vehicle "${normalizedVeh}".`;
           setVehicleError(msg);
           setErrorMessage(msg);
           setSubmitting(false);
@@ -1220,10 +1242,16 @@ function AddInsuranceRecordForm() {
 
               <button
                 type="submit"
-                disabled={submitting || Boolean(vehicleCheck?.has_active_policy && !isEditMode)}
+                disabled={
+                  submitting ||
+                  Boolean(
+                    (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) &&
+                      !isEditMode
+                  )
+                }
                 title={
-                  vehicleCheck?.has_active_policy && !isEditMode
-                    ? "Active policy already exists for this vehicle. Please Renew or Update."
+                  (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !isEditMode
+                    ? "A current or scheduled policy already exists for this vehicle."
                     : undefined
                 }
                 className="px-7 py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center min-w-[140px]"
@@ -1233,8 +1261,8 @@ function AddInsuranceRecordForm() {
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Saving...</span>
                   </span>
-                ) : vehicleCheck?.has_active_policy && !isEditMode ? (
-                  "Active Policy Exists"
+                ) : (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !isEditMode ? (
+                  "Policy Already Exists"
                 ) : isEditMode ? (
                   "Update Record"
                 ) : (

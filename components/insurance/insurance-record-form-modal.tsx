@@ -248,6 +248,10 @@ function InsuranceRecordFormDialog({
           setVehicleError(
             `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
           );
+        } else if (res.has_scheduled_renewal && res.scheduled_record && !recordToEdit) {
+          setVehicleError(
+            `Renewal policy #${res.scheduled_record.policy_number} is already scheduled for vehicle "${normalized}".`
+          );
         } else {
           setVehicleError("");
         }
@@ -301,6 +305,10 @@ function InsuranceRecordFormDialog({
       if (res.has_active_policy && res.active_record && !recordToEdit) {
         setVehicleError(
           `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
+        );
+      } else if (res.has_scheduled_renewal && res.scheduled_record && !recordToEdit) {
+        setVehicleError(
+          `Renewal policy #${res.scheduled_record.policy_number} is already scheduled for vehicle "${normalized}".`
         );
       } else {
         setVehicleError("");
@@ -363,6 +371,12 @@ function InsuranceRecordFormDialog({
       );
       return;
     }
+    if (vehicleCheck?.has_scheduled_renewal && vehicleCheck.scheduled_record && !recordToEdit) {
+      setErrorMsg(
+        `Renewal policy #${vehicleCheck.scheduled_record.policy_number} is already scheduled for vehicle "${normalizedVeh}".`
+      );
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -390,6 +404,14 @@ function InsuranceRecordFormDialog({
         if (vCheck.has_active_policy && vCheck.active_record) {
           setVehicleCheck(vCheck);
           const msg = `Active policy #${vCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update.`;
+          setVehicleError(msg);
+          setErrorMsg(msg);
+          setSubmitting(false);
+          return;
+        }
+        if (!recordToEdit && vCheck.has_scheduled_renewal && vCheck.scheduled_record) {
+          setVehicleCheck(vCheck);
+          const msg = `Renewal policy #${vCheck.scheduled_record.policy_number} is already scheduled for vehicle "${normalizedVeh}".`;
           setVehicleError(msg);
           setErrorMsg(msg);
           setSubmitting(false);
@@ -773,18 +795,24 @@ function InsuranceRecordFormDialog({
             </button>
             <button
               type="submit"
-              disabled={submitting || Boolean(vehicleCheck?.has_active_policy && !recordToEdit)}
+              disabled={
+                submitting ||
+                Boolean(
+                  (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) &&
+                    !recordToEdit
+                )
+              }
               title={
-                vehicleCheck?.has_active_policy && !recordToEdit
-                  ? "Active policy already exists for this vehicle. Please Renew or Update."
+                (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !recordToEdit
+                  ? "A current or scheduled policy already exists for this vehicle."
                   : undefined
               }
               className="px-5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center min-w-[120px]"
             >
               {submitting ? (
                 "Saving..."
-              ) : vehicleCheck?.has_active_policy && !recordToEdit ? (
-                "Active Policy Exists"
+              ) : (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !recordToEdit ? (
+                "Policy Already Exists"
               ) : recordToEdit ? (
                 "Update Record"
               ) : (

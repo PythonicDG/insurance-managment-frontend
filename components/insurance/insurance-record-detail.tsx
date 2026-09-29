@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   RefreshCw,
   History,
-  ShieldCheck,
   Printer,
   Loader2,
   MessageSquare,
@@ -28,6 +27,10 @@ import {
 } from "@/lib/api";
 
 import { formatDisplayDate } from "@/lib/date-utils";
+import {
+  getPolicyLifecycleStatus,
+  PolicyLifecycleBadge,
+} from "@/components/insurance/policy-lifecycle-badge";
 import {
   printTransactionStatement,
   printSinglePaymentReceipt,
@@ -366,7 +369,9 @@ export function InsuranceRecordDetail({
           </h2>
 
           <div className="flex items-center gap-2.5">
-            {onRenew && (
+            {onRenew &&
+              !record.renewed_policy_id &&
+              !["scheduled", "renewed"].includes(getPolicyLifecycleStatus(record)) && (
               <button
                 type="button"
                 onClick={() => onRenew(record)}
@@ -470,16 +475,7 @@ export function InsuranceRecordDetail({
               Status
             </p>
             <div>
-              {record.is_active ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                  Expired / Inactive
-                </span>
-              )}
+              <PolicyLifecycleBadge record={record} />
             </div>
           </div>
 
@@ -930,16 +926,7 @@ export function InsuranceRecordDetail({
                       {formatCurrency(item.total_premium)}
                     </td>
                     <td className="py-3 px-4">
-                      {item.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                          Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                          Expired / Inactive
-                        </span>
-                      )}
+                      <PolicyLifecycleBadge record={item} compact />
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="inline-flex items-center justify-end gap-1.5">

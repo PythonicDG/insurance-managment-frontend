@@ -200,6 +200,18 @@ export interface InsuranceRecordItem {
   is_expired?: boolean;
   days_left?: number;
   status?: "active" | "expiring_soon" | "expired" | string;
+  lifecycle_status?:
+    | "current"
+    | "expiring_today"
+    | "expiring_soon"
+    | "expired"
+    | "scheduled"
+    | "renewed"
+    | "inactive"
+    | string;
+  needs_renewal?: boolean;
+  previous_policy_id?: number | null;
+  renewed_policy_id?: number | null;
   documents_count?: number;
   documents?: InsuranceDocumentItem[];
   payments?: PaymentTransaction[];
@@ -264,6 +276,8 @@ export interface VehicleCheckResponse {
   active_record: InsuranceRecordItem | null;
   has_expired_policy: boolean;
   latest_expired_record: InsuranceRecordItem | null;
+  has_scheduled_renewal?: boolean;
+  scheduled_record?: InsuranceRecordItem | null;
   history_count: number;
   message?: string;
 }
@@ -594,11 +608,17 @@ export const insuranceRecordService = {
   async renewPolicy(
     recordId: number,
     data: Partial<InsuranceRecordPayload>
-  ): Promise<{ message: string; data: InsuranceRecordItem; previous_record_id: number }> {
+  ): Promise<{
+    message: string;
+    data: InsuranceRecordItem;
+    previous_record_id: number;
+    renewal_kind: "scheduled" | "current";
+  }> {
     const response = await apiClient.post<{
       message: string;
       data: InsuranceRecordItem;
       previous_record_id: number;
+      renewal_kind: "scheduled" | "current";
     }>(`/insurance/records/${recordId}/renew/`, data);
     return response.data;
   },
