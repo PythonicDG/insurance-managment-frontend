@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   Plus,
@@ -19,6 +20,8 @@ import {
   X,
   Check,
   Clock,
+  MoreVertical,
+  CreditCard,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -150,6 +153,31 @@ function InsuranceRecordsContent() {
 
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [recordToRenew, setRecordToRenew] = useState<InsuranceRecordItem | null>(null);
+
+  const [actionMenu, setActionMenu] = useState<{
+    record: InsuranceRecordItem;
+    top: number;
+    left: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!actionMenu) return;
+
+    const closeMenu = () => setActionMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [actionMenu]);
 
   const handleOpenRenewModal = (record: InsuranceRecordItem) => {
     setRecordToRenew(record);
@@ -503,6 +531,29 @@ function InsuranceRecordsContent() {
     }
   };
 
+  // Compact table date: "2026-02-04" -> "04 Feb 26"
+  const formatPolicyPeriodDate = (dateStr?: string) => {
+    if (!dateStr) return "—";
+    try {
+      const parts = dateStr.split("-");
+      const date =
+        parts.length === 3
+          ? parts[0].length === 4
+            ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+            : new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]))
+          : new Date(dateStr);
+
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "2-digit",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Format Currency: 78 -> "₹78"
   const formatCurrency = (val?: number | string) => {
     if (val === undefined || val === null) return "₹0";
@@ -658,6 +709,32 @@ function InsuranceRecordsContent() {
 
   const handleOpenEditModal = (record: InsuranceRecordItem) => {
     router.push(`/insurance-records/new?id=${record.id}`);
+  };
+
+  const handleToggleActionMenu = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    record: InsuranceRecordItem
+  ) => {
+    event.stopPropagation();
+
+    if (actionMenu?.record.id === record.id) {
+      setActionMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 192;
+    const menuHeight = 174;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    setActionMenu({
+      record,
+      top:
+        spaceBelow >= menuHeight + 8
+          ? rect.bottom + 6
+          : Math.max(8, rect.top - menuHeight - 6),
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    });
   };
 
   // Delete Record
@@ -1875,39 +1952,30 @@ function InsuranceRecordsContent() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full min-w-[860px] table-fixed text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/70 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                       <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
+                        className="w-[150px] py-3 pl-4 pr-3 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("policy_start_date")}
                       >
                         <div className="flex items-center gap-1">
-                          <span>INSURANCE START DATE</span>
+                          <span>POLICY PERIOD</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
+                      <th className="w-[116px] py-3 px-3">STATUS</th>
                       <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
-                        onClick={() => handleSort("policy_expiry_date")}
-                      >
-                        <div className="flex items-center gap-1">
-                          <span>INSURANCE END DATE</span>
-                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                        </div>
-                      </th>
-                      <th className="py-3 px-4">POLICY STATUS</th>
-                      <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
+                        className="w-[148px] py-3 px-3 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("customer__name")}
                       >
                         <div className="flex items-center gap-1">
-                          <span>CUSTOMER NAME</span>
+                          <span>CUSTOMER</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
                       <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
+                        className="w-[112px] py-3 px-3 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("customer__phone")}
                       >
                         <div className="flex items-center gap-1">
@@ -1915,18 +1983,18 @@ function InsuranceRecordsContent() {
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
-                      <th className="py-3 px-4">VEHICLE NUMBER</th>
+                      <th className="w-[124px] py-3 px-3">VEHICLE</th>
                       <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
+                        className="w-[150px] py-3 px-3 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("insurance_company__name")}
                       >
                         <div className="flex items-center gap-1">
-                          <span>INSURANCE COMPANY</span>
+                          <span>COMPANY</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
                       <th
-                        className="py-3 px-4 cursor-pointer select-none hover:text-slate-800"
+                        className="w-[96px] py-3 px-3 cursor-pointer select-none hover:text-slate-800"
                         onClick={() => handleSort("total_premium")}
                       >
                         <div className="flex items-center gap-1">
@@ -1934,7 +2002,9 @@ function InsuranceRecordsContent() {
                           <ArrowUpDown className="w-3 h-3 text-slate-400" />
                         </div>
                       </th>
-                      <th className="py-3 px-4 text-center">ACTIONS</th>
+                      <th className="sticky right-0 z-10 w-[64px] py-3 px-3 text-center bg-slate-50 shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)]">
+                        ACTIONS
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1950,57 +2020,47 @@ function InsuranceRecordsContent() {
                             isExpired ? "text-red-600" : ""
                           }`}
                         >
-                          {/* Insurance Start Date */}
+                          {/* Compact policy start and end dates */}
                           <td
-                            className={`py-3.5 px-4 font-normal whitespace-nowrap ${
+                            className={`py-3 pl-4 pr-3 font-medium whitespace-nowrap ${
                               isExpired ? "text-red-600" : "text-slate-600"
                             }`}
+                            title={`${formatDisplayDate(record.policy_start_date)} to ${formatDisplayDate(
+                              record.policy_expiry_date
+                            )}`}
                           >
-                            {formatDisplayDate(record.policy_start_date)}
+                            {formatPolicyPeriodDate(record.policy_start_date)}
+                            <span className="mx-1.5 text-slate-400" aria-hidden="true">
+                              →
+                            </span>
+                            {formatPolicyPeriodDate(record.policy_expiry_date)}
                           </td>
 
-                          {/* Insurance End Date */}
-                          <td
-                            className={`py-3.5 px-4 font-normal whitespace-nowrap ${
-                              isExpired ? "text-red-600" : "text-slate-600"
-                            }`}
-                          >
-                            {formatDisplayDate(record.policy_expiry_date)}
-                          </td>
-
-                          <td className="py-3.5 px-4 whitespace-nowrap">
+                          <td className="py-3 px-3 whitespace-nowrap">
                             <PolicyLifecycleBadge record={record} compact />
                           </td>
 
                           {/* Customer Name */}
                           <td
-                            className={`py-3.5 px-4 font-bold whitespace-nowrap ${
+                            className={`py-3 px-3 font-bold whitespace-nowrap ${
                               isExpired ? "text-red-600" : "text-slate-900"
                             }`}
+                            title={record.customer?.name || undefined}
                           >
-                            {record.customer?.name || "—"}
+                            <div className="truncate">{record.customer?.name || "—"}</div>
                           </td>
 
                           {/* Phone */}
                           <td
-                            className={`py-3.5 px-4 whitespace-nowrap font-medium ${
+                            className={`py-3 px-3 whitespace-nowrap font-medium ${
                               isExpired ? "text-red-600" : "text-slate-500"
                             }`}
                           >
-                            <div>{record.customer?.phone || "—"}</div>
-                            {(record.alternative_mobile_number || record.customer?.alternative_mobile_number) && (
-                              <div
-                                className={`text-[10px] font-normal ${
-                                  isExpired ? "text-red-500" : "text-slate-400"
-                                }`}
-                              >
-                                Alt: {record.alternative_mobile_number || record.customer?.alternative_mobile_number}
-                              </div>
-                            )}
+                            {record.customer?.phone || "—"}
                           </td>
 
                           {/* Vehicle Number (Pill badge) */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
+                          <td className="py-3 px-3 whitespace-nowrap">
                             <span
                               className={`inline-block px-2.5 py-1 rounded-md font-mono text-[11px] font-semibold ${
                                 isExpired
@@ -2014,16 +2074,19 @@ function InsuranceRecordsContent() {
 
                           {/* Insurance Company */}
                           <td
-                            className={`py-3.5 px-4 font-medium whitespace-nowrap ${
+                            className={`py-3 px-3 font-medium whitespace-nowrap ${
                               isExpired ? "text-red-600" : "text-slate-700"
                             }`}
+                            title={record.insurance_company?.name || undefined}
                           >
-                            {record.insurance_company?.name || "—"}
+                            <div className="truncate">
+                              {record.insurance_company?.name || "—"}
+                            </div>
                           </td>
 
                           {/* Total Premium */}
                           <td
-                            className={`py-3.5 px-4 font-bold whitespace-nowrap ${
+                            className={`py-3 px-3 font-bold whitespace-nowrap ${
                               isExpired ? "text-red-600" : "text-slate-900"
                             }`}
                           >
@@ -2041,77 +2104,25 @@ function InsuranceRecordsContent() {
                             )}
                           </td>
 
-                          {/* Actions: Edit, Trash, Add Payment */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-2">
-                              {/* Edit */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenEditModal(record);
-                                }}
-                                className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                                title="Edit Record"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-
-                              {/* Renew */}
-                              <button
-                                type="button"
-                                disabled={Boolean(
-                                  record.renewed_policy_id ||
-                                    ["scheduled", "renewed"].includes(
-                                      getPolicyLifecycleStatus(record)
-                                    )
-                                )}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenRenewModal(record);
-                                }}
-                                className="p-1 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                                title={record.renewed_policy_id ? "Policy already renewed" : "Renew Policy"}
-                              >
-                                <RefreshCw className="w-4 h-4" />
-                              </button>
-
-                              {/* Delete */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteRecord(record);
-                                }}
-                                className="p-1 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
-                                title="Delete Record"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-
-                              {/* Add Payment Button or Paid badge */}
-                              {(record.balance ?? 0) <= 0 ? (
-                                <span
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg text-xs font-semibold select-none ml-1 cursor-default"
-                                  title="Policy is fully paid (₹0 outstanding)"
-                                >
-                                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
-                                  Paid
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenPaymentModal(record);
-                                  }}
-                                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer ml-1"
-                                >
-                                  Add Payment
-                                </button>
-                              )}
-                            </div>
+                          {/* Compact action menu */}
+                          <td
+                            className="sticky right-0 z-[1] bg-white py-3 px-3 whitespace-nowrap text-center shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)] transition-colors group-hover:bg-blue-50"
+                          >
+                            <button
+                              type="button"
+                              onClick={(event) => handleToggleActionMenu(event, record)}
+                              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+                                actionMenu?.record.id === record.id
+                                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                                  : "border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-800"
+                              }`}
+                              title="Record actions"
+                              aria-label={`Actions for ${record.customer?.name || "insurance record"}`}
+                              aria-haspopup="menu"
+                              aria-expanded={actionMenu?.record.id === record.id}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -2191,6 +2202,104 @@ function InsuranceRecordsContent() {
           </div>
         </div>
       )}
+
+      {actionMenu &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActionMenu(null);
+              }}
+              aria-label="Close actions menu"
+            />
+            <div
+              role="menu"
+              aria-label="Insurance record actions"
+              className="fixed z-50 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+              style={{ top: actionMenu.top, left: actionMenu.left }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handleOpenEditModal(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-blue-600 cursor-pointer"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit Record
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={Boolean(
+                  actionMenu.record.renewed_policy_id ||
+                    ["scheduled", "renewed"].includes(
+                      getPolicyLifecycleStatus(actionMenu.record)
+                    )
+                )}
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handleOpenRenewModal(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                title={
+                  actionMenu.record.renewed_policy_id
+                    ? "Policy already renewed"
+                    : "Renew Policy"
+                }
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Renew Policy
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={(actionMenu.record.balance ?? 0) <= 0}
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handleOpenPaymentModal(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-default disabled:text-emerald-600 disabled:opacity-70 cursor-pointer"
+                title={
+                  (actionMenu.record.balance ?? 0) <= 0
+                    ? "Policy is fully paid (₹0 outstanding)"
+                    : "Add Payment"
+                }
+              >
+                {(actionMenu.record.balance ?? 0) <= 0 ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <CreditCard className="h-3.5 w-3.5" />
+                )}
+                {(actionMenu.record.balance ?? 0) <= 0 ? "Paid" : "Add Payment"}
+              </button>
+              <div className="my-1 border-t border-slate-100" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handleDeleteRecord(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Record
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
 
       {isPinModalOpen && (
         <ExportPinModal
