@@ -1117,9 +1117,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
       {/* MODAL 1: EDIT CUSTOMER PROFILE */}
       {isEditCustomerOpen && customer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs overflow-hidden animate-in fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full max-h-[90vh] max-h-[90dvh] flex flex-col overflow-hidden">
+            <div className="sticky top-0 z-10 px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
                   <Edit2 className="w-4 h-4" />
@@ -1140,12 +1140,13 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="p-5 space-y-4">
-              {editError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
-                  {editError}
-                </div>
-              )}
+            <form onSubmit={handleSaveCustomer} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-3 space-y-3">
+                {editError && (
+                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                    {editError}
+                  </div>
+                )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -1157,7 +1158,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   placeholder="Full name"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -1171,7 +1172,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="+91 98765-43210"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -1184,7 +1185,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   value={editAltPhone}
                   onChange={(e) => setEditAltPhone(e.target.value)}
                   placeholder="e.g. +91 98765-43211"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -1197,7 +1198,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="customer@example.com"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -1210,11 +1211,12 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   value={editAddress}
                   onChange={(e) => setEditAddress(e.target.value)}
                   placeholder="Full street address..."
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
+              </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="sticky bottom-0 z-10 px-4 sm:px-5 py-3 flex items-center justify-end gap-2 border-t border-slate-100 bg-white shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsEditCustomerOpen(false)}

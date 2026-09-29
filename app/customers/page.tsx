@@ -1,26 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Users,
   UserPlus,
   Search,
-  Phone,
-  Mail,
-  MapPin,
   Car,
   Edit2,
   Check,
   X,
   Loader2,
-  RefreshCw,
   Info,
   Sparkles,
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -31,7 +28,31 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
+
+  const [actionMenu, setActionMenu] = useState<{
+    customer: CustomerSummary;
+    top: number;
+    left: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!actionMenu) return;
+
+    const closeMenu = () => setActionMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [actionMenu]);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,18 +95,6 @@ export default function CustomersPage() {
     setToast({ open: true, type, title, message });
   }, []);
 
-  const loadCustomers = useCallback(async () => {
-    try {
-      const data = await customerService.getAll();
-      setCustomers(data);
-    } catch {
-      showToast("error", "Error", "Failed to load customers.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [showToast]);
-
   useEffect(() => {
     let active = true;
     const fetchCustomers = async () => {
@@ -97,7 +106,6 @@ export default function CustomersPage() {
       } finally {
         if (active) {
           setLoading(false);
-          setRefreshing(false);
         }
       }
     };
@@ -106,11 +114,6 @@ export default function CustomersPage() {
       active = false;
     };
   }, [showToast]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadCustomers();
-  };
 
   // Open Edit Modal
   const openEditModal = (cust: CustomerSummary) => {
@@ -121,6 +124,35 @@ export default function CustomersPage() {
     setEditAddress(cust.address || "");
     setEditEmail(cust.email || "");
     setEditError("");
+  };
+
+  const handleToggleActionMenu = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    customer: CustomerSummary
+  ) => {
+    event.stopPropagation();
+
+    const customerId = customer.id || customer.customer_id;
+    const openCustomerId =
+      actionMenu?.customer.id || actionMenu?.customer.customer_id;
+    if (openCustomerId === customerId) {
+      setActionMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 192;
+    const menuHeight = 94;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    setActionMenu({
+      customer,
+      top:
+        spaceBelow >= menuHeight + 8
+          ? rect.bottom + 6
+          : Math.max(8, rect.top - menuHeight - 6),
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    });
   };
 
   // Save Customer Edits (in-place update)
@@ -225,11 +257,6 @@ export default function CustomersPage() {
     );
   }, [customers, searchTerm]);
 
-  // Reset pagination to page 1 on search term or page size change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, pageSize]);
-
   // Pagination calculations
   const totalCount = filteredCustomers.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -262,7 +289,7 @@ export default function CustomersPage() {
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         {/* Customer Directory Table */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-slate-500" />
               <h2 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">
@@ -270,14 +297,18 @@ export default function CustomersPage() {
               </h2>
             </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative w-full sm:w-80">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search by name, phone, email, ID..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full min-h-9 pl-9 pr-3 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                aria-label="Search customers"
               />
             </div>
           </div>
@@ -298,15 +329,17 @@ export default function CustomersPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-slate-50/80 text-slate-600 uppercase text-[10px] sm:text-xs font-semibold tracking-wider border-b border-slate-100">
+                <table className="w-full min-w-[790px] table-fixed text-left text-xs border-collapse">
+                  <thead className="bg-slate-50/70 text-slate-500 uppercase text-[11px] font-bold tracking-wider border-b border-slate-200/80">
                     <tr>
-                      <th className="py-3 px-4 sm:px-6">Customer ID</th>
-                      <th className="py-3 px-4 sm:px-6">Name</th>
-                      <th className="py-3 px-4 sm:px-6">Phone Number</th>
-                      <th className="py-3 px-4 sm:px-6">Email &amp; Address</th>
-                      <th className="py-3 px-4 sm:px-6">Vehicles</th>
-                      <th className="py-3 px-4 sm:px-6 text-right">Actions</th>
+                      <th className="w-[94px] py-3 pl-4 pr-3">Customer ID</th>
+                      <th className="w-[184px] py-3 px-3">Customer</th>
+                      <th className="w-[156px] py-3 px-3">Phone</th>
+                      <th className="w-[230px] py-3 px-3">Email &amp; Address</th>
+                      <th className="w-[70px] py-3 px-3 text-center">Vehicles</th>
+                      <th className="sticky right-0 z-10 w-[64px] py-3 px-3 text-center bg-slate-50 shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)]">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -321,28 +354,30 @@ export default function CustomersPage() {
                         className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                       >
                         {/* ID Column */}
-                        <td className="py-3.5 px-4 sm:px-6 font-mono text-xs font-semibold text-slate-700">
+                        <td className="py-3 pl-4 pr-3 font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">
                           <span className="bg-slate-100 group-hover:bg-blue-100/70 group-hover:text-blue-700 px-2 py-0.5 rounded border border-slate-200 transition-colors">
                             #{cust.customer_id || cust.id}
                           </span>
                         </td>
 
                         {/* Name Column */}
-                        <td className="py-3.5 px-4 sm:px-6">
-                          <div className="flex items-center gap-2">
+                        <td className="py-3 px-3" title={cust.name || "Unnamed Customer"}>
+                          <div className="flex min-w-0 items-center gap-2.5">
                             <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                               {(cust.name || "C").charAt(0).toUpperCase()}
                             </div>
-                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                            <span className="min-w-0 truncate font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                               {cust.name || "Unnamed Customer"}
                             </span>
                           </div>
                         </td>
 
                         {/* Phone Column */}
-                        <td className="py-3.5 px-4 sm:px-6">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-slate-800">{cust.phone}</span>
+                        <td className="py-3 px-3">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate font-medium text-slate-800" title={cust.phone || undefined}>
+                              {cust.phone || "—"}
+                            </span>
                             {isSharedPhone && (
                               <span
                                 title="This phone number is shared by multiple customers"
@@ -354,26 +389,35 @@ export default function CustomersPage() {
                             )}
                           </div>
                           {cust.alternative_mobile_number && (
-                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            <div
+                              className="truncate text-[10px] text-slate-400 mt-0.5"
+                              title={`Alternate: ${cust.alternative_mobile_number}`}
+                            >
                               Alt: {cust.alternative_mobile_number}
                             </div>
                           )}
                         </td>
 
                         {/* Email & Address */}
-                        <td className="py-3.5 px-4 sm:px-6 text-xs text-slate-500 max-w-xs truncate">
-                          {cust.email && <div className="text-slate-700">{cust.email}</div>}
+                        <td className="py-3 px-3 text-xs text-slate-500">
+                          {cust.email && (
+                            <div className="truncate font-medium text-slate-700" title={cust.email}>
+                              {cust.email}
+                            </div>
+                          )}
                           {cust.address ? (
-                            <div className="text-slate-500 truncate">{cust.address}</div>
+                            <div className="truncate text-[11px] text-slate-500" title={cust.address}>
+                              {cust.address}
+                            </div>
                           ) : (
-                            <span className="text-slate-400 italic">No address registered</span>
+                            <span className="text-[11px] text-slate-400 italic">No address registered</span>
                           )}
                         </td>
 
                         {/* Vehicles Count */}
-                        <td className="py-3.5 px-4 sm:px-6 text-xs">
+                        <td className="py-3 px-3 text-center text-xs">
                           {cust.vehicles_count ? (
-                            <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                            <span className="inline-flex items-center justify-center gap-1 font-semibold text-slate-700">
                               <Car className="w-3.5 h-3.5 text-blue-600" />
                               <span>{cust.vehicles_count}</span>
                             </span>
@@ -383,31 +427,26 @@ export default function CustomersPage() {
                         </td>
 
                         {/* Actions Column */}
-                        <td className="py-3.5 px-4 sm:px-6 text-right">
-                          <div
-                            className="inline-flex items-center gap-2"
-                            onClick={(e) => e.stopPropagation()}
+                        <td className="sticky right-0 z-[1] bg-white py-3 px-3 whitespace-nowrap text-center shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)] transition-colors group-hover:bg-blue-50">
+                          <button
+                            type="button"
+                            onClick={(event) => handleToggleActionMenu(event, cust)}
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+                              (actionMenu?.customer.id || actionMenu?.customer.customer_id) ===
+                              (cust.id || cust.customer_id)
+                                ? "border-blue-200 bg-blue-50 text-blue-600"
+                                : "border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-800"
+                            }`}
+                            title="Customer actions"
+                            aria-label={`Actions for ${cust.name || "customer"}`}
+                            aria-haspopup="menu"
+                            aria-expanded={
+                              (actionMenu?.customer.id || actionMenu?.customer.customer_id) ===
+                              (cust.id || cust.customer_id)
+                            }
                           >
-                            <Link
-                              href={`/customers/${cust.id || cust.customer_id}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-100/70 rounded-lg transition-colors"
-                              title="View Customer Details"
-                            >
-                              <span>Details</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditModal(cust);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                              <span>Edit</span>
-                            </button>
-                          </div>
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -514,11 +553,61 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {actionMenu &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActionMenu(null);
+              }}
+              aria-label="Close actions menu"
+            />
+            <div
+              role="menu"
+              aria-label="Customer actions"
+              className="fixed z-50 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+              style={{ top: actionMenu.top, left: actionMenu.left }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const customer = actionMenu.customer;
+                  setActionMenu(null);
+                  router.push(`/customers/${customer.id || customer.customer_id}`);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-blue-600 cursor-pointer"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View Details
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const customer = actionMenu.customer;
+                  setActionMenu(null);
+                  openEditModal(customer);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                Edit Customer
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
+
       {/* EDIT CUSTOMER MODAL */}
       {editingCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full max-h-[90vh] max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="sticky top-0 z-10 px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
                   <Edit2 className="w-4 h-4" />
@@ -541,33 +630,34 @@ export default function CustomersPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="p-5 space-y-4">
-              {editError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
-                  {editError}
+            <form onSubmit={handleSaveEdit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-3 space-y-3">
+                {editError && (
+                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                    {editError}
+                  </div>
+                )}
+
+                <div className="p-2.5 bg-blue-50/50 rounded-xl border border-blue-100 text-xs text-blue-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>
+                    Updates will modify this customer directly. No duplicate will be created.
+                  </span>
                 </div>
-              )}
 
-              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 text-xs text-blue-800 flex items-center gap-2">
-                <Info className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>
-                  Updates will modify this customer directly. No duplicate will be created.
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Customer Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Enter full name"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Customer Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Enter full name"
+                    className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -579,7 +669,7 @@ export default function CustomersPage() {
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="+91 98765-43210"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
                   Phone numbers are normalized automatically.
@@ -595,7 +685,7 @@ export default function CustomersPage() {
                   value={editAltPhone}
                   onChange={(e) => setEditAltPhone(e.target.value)}
                   placeholder="e.g. +91 98765-43211"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -608,7 +698,7 @@ export default function CustomersPage() {
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="customer@example.com"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -621,11 +711,12 @@ export default function CustomersPage() {
                   value={editAddress}
                   onChange={(e) => setEditAddress(e.target.value)}
                   placeholder="Enter full address"
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
+              </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="sticky bottom-0 z-10 px-4 sm:px-5 py-3 flex items-center justify-end gap-2 border-t border-slate-100 bg-white shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditingCustomer(null)}
