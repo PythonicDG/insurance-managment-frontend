@@ -59,13 +59,13 @@ export function CustomerLookupSection({
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Normalize phone locally for comparison
-  const normalizeDigits = (val: string) => val.replace(/[\s\-\(\)\.]/g, "");
+  const normalizeDigits = (val: string) => val.replace(/\D/g, "");
 
   const performLookup = useCallback(async (phoneToLookup: string) => {
     const trimmed = phoneToLookup.trim();
     const cleanDigits = normalizeDigits(trimmed);
 
-    if (!trimmed || cleanDigits.length < 5) {
+    if (cleanDigits.length !== 10) {
       setMatchingCustomers([]);
       setHasSearched(false);
       setIsSearching(false);
@@ -92,7 +92,7 @@ export function CustomerLookupSection({
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (!clean || clean.length < 5) {
+    if (clean.length !== 10) {
       searchTimeoutRef.current = setTimeout(() => {
         setMatchingCustomers([]);
         setHasSearched(false);
@@ -117,7 +117,7 @@ export function CustomerLookupSection({
     setIsDifferentPerson(false);
     if (customer.name) setCustomerName(customer.name);
     if (customer.address) setCustomerAddress(customer.address);
-    if (customer.email && setCustomerEmail) setCustomerEmail(customer.email);
+    if (setCustomerEmail) setCustomerEmail(customer.email || "");
     if (setCustomerAltPhone) setCustomerAltPhone(customer.alternative_mobile_number || "");
   };
 
@@ -174,27 +174,32 @@ export function CustomerLookupSection({
               <Phone className="w-4 h-4" />
             </div>
             <input
-              type="text"
+              type="tel"
               required
               disabled={disabled}
               value={customerPhone}
               onChange={(e) => {
-                setCustomerPhone(e.target.value);
+                const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setCustomerPhone(digitsOnly);
                 // If phone changed from current selected customer's phone, reset selected customer
                 if (
                   selectedCustomer &&
-                  normalizeDigits(e.target.value) !== normalizeDigits(selectedCustomer.phone)
+                  digitsOnly !== normalizeDigits(selectedCustomer.phone)
                 ) {
                   setSelectedCustomer(null);
                   setIsDifferentPerson(false);
                 }
               }}
               onBlur={() => {
-                if (customerPhone.trim().length >= 5) {
+                if (customerPhone.length === 10) {
                   performLookup(customerPhone);
                 }
               }}
-              placeholder="+91 98765-43210"
+              inputMode="numeric"
+              pattern="[0-9]{10}"
+              maxLength={10}
+              title="Enter exactly 10 digits"
+              placeholder="9876543210"
               className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
             />
             {isSearching ? (
@@ -220,8 +225,13 @@ export function CustomerLookupSection({
             )}
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            Looking up normalized phone number automatically.
+            Enter exactly 10 digits. Customer lookup runs automatically.
           </p>
+          {customerPhone.length > 0 && customerPhone.length < 10 && (
+            <p className="mt-1 text-xs font-medium text-red-600">
+              Mobile number must be exactly 10 digits.
+            </p>
+          )}
         </div>
 
         {/* Customer Name Input */}
@@ -511,7 +521,7 @@ export function CustomerLookupSection({
       )}
 
       {/* STATE 3: FRESH PHONE NUMBER (NO MATCHES FOUND) */}
-      {hasSearched && !hasMatches && !isSearching && customerPhone.trim().length >= 5 && (
+      {hasSearched && !hasMatches && !isSearching && customerPhone.length === 10 && (
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex items-center justify-between text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <Info className="w-4 h-4 text-slate-400 shrink-0" />

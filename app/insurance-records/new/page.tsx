@@ -42,6 +42,8 @@ import {
   validateVehicleRegistration,
 } from "@/lib/vehicle-utils";
 
+const toTenDigitPhone = (value: string) => value.replace(/\D/g, "").slice(-10);
+
 function AddInsuranceRecordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +54,7 @@ function AddInsuranceRecordForm() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAltPhone, setCustomerAltPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
   const [isDifferentPerson, setIsDifferentPerson] = useState(false);
@@ -157,8 +160,9 @@ function AddInsuranceRecordForm() {
           if (active && rec) {
             setSelectedCustomer(rec.customer || null);
             setCustomerName(rec.customer?.name || "");
-            setCustomerPhone(rec.customer?.phone || "");
+            setCustomerPhone(toTenDigitPhone(rec.customer?.phone || ""));
             setCustomerAltPhone(rec.alternative_mobile_number || rec.customer?.alternative_mobile_number || "");
+            setCustomerEmail(rec.customer?.email || "");
             setCustomerAddress(rec.customer?.address || "");
             setVehicleType(rec.vehicle?.vehicle_type || "Car");
             setVehicleNumber(normalizeVehicleNumber(rec.vehicle?.vehicle_number || ""));
@@ -323,7 +327,7 @@ function AddInsuranceRecordForm() {
         }
         // Pre-fill customer details if empty
         if (res.exists && res.customer_phone && !customerPhone) {
-          setCustomerPhone(res.customer_phone);
+          setCustomerPhone(toTenDigitPhone(res.customer_phone));
           if (res.customer_name && !customerName) {
             setCustomerName(res.customer_name);
           }
@@ -460,8 +464,8 @@ function AddInsuranceRecordForm() {
       setErrorMessage("Please enter customer name.");
       return;
     }
-    if (!customerPhone.trim()) {
-      setErrorMessage("Please enter customer phone number.");
+    if (!/^\d{10}$/.test(customerPhone)) {
+      setErrorMessage("Please enter a valid 10-digit customer mobile number.");
       return;
     }
     const normalizedVeh = normalizeVehicleNumber(vehicleNumber);
@@ -579,6 +583,7 @@ function AddInsuranceRecordForm() {
         customer_phone: customerPhone.trim(),
         customer_alternative_mobile_number: customerAltPhone.trim() || undefined,
         alternative_mobile_number: customerAltPhone.trim() || undefined,
+        customer_email: customerEmail.trim() || undefined,
         customer_address: customerAddress.trim() || undefined,
         vehicle_number: normalizedVeh,
         vehicle_type: vehicleType.trim(),
@@ -736,6 +741,8 @@ function AddInsuranceRecordForm() {
               setCustomerPhone={setCustomerPhone}
               customerAltPhone={customerAltPhone}
               setCustomerAltPhone={setCustomerAltPhone}
+              customerEmail={customerEmail}
+              setCustomerEmail={setCustomerEmail}
               customerAddress={customerAddress}
               setCustomerAddress={setCustomerAddress}
               selectedCustomer={selectedCustomer}
