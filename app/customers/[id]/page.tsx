@@ -462,7 +462,11 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       showToast(
         "success",
         "Payment Recorded",
-        `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} recorded successfully.`
+        paymentData.amount > 0
+          ? (paymentData.discount || 0) > 0
+            ? `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} (Discount: ₹${(paymentData.discount || 0).toLocaleString("en-IN")}) recorded successfully.`
+            : `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} recorded successfully.`
+          : `Outstanding balance of ₹${(paymentData.discount || 0).toLocaleString("en-IN")} cleared as discount successfully.`
       );
       await fetchCustomerData(false);
     } catch (err: unknown) {

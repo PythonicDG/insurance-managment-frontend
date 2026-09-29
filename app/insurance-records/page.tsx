@@ -681,7 +681,11 @@ function InsuranceRecordsContent() {
       showToast(
         "success",
         "Payment Recorded",
-        `Payment of ₹${payAmount.toLocaleString("en-IN")} recorded successfully.`
+        payAmount > 0
+          ? payDiscount > 0
+            ? `Payment of ₹${payAmount.toLocaleString("en-IN")} (Discount: ₹${payDiscount.toLocaleString("en-IN")}) recorded successfully.`
+            : `Payment of ₹${payAmount.toLocaleString("en-IN")} recorded successfully.`
+          : `Outstanding balance of ₹${payDiscount.toLocaleString("en-IN")} cleared as discount successfully.`
       );
     } catch {
       showToast("error", "Payment Failed", "Could not record payment. Please try again.");

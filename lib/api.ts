@@ -751,7 +751,12 @@ export const paymentService = {
       {
         amount: data.amount,
         discount: data.discount !== undefined ? data.discount : 0,
-        payment_method: data.payment_method || data.payment_mode || "Cash",
+        payment_method:
+          data.payment_method ||
+          data.payment_mode ||
+          (data.amount === 0 && (data.discount !== undefined ? data.discount : 0) > 0
+            ? "Discount / Waiver"
+            : "Cash"),
         payment_date: data.payment_date,
         notes: data.notes || data.remark || "",
       }

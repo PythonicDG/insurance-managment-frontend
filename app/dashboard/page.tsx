@@ -258,9 +258,12 @@ export default function DashboardPage() {
       setToast({
         open: true,
         title: "Payment Recorded",
-        message: `Payment of ₹${paymentData.amount.toLocaleString(
-          "en-IN"
-        )} recorded successfully!`,
+        message:
+          paymentData.amount > 0
+            ? (paymentData.discount || 0) > 0
+              ? `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} (Discount: ₹${(paymentData.discount || 0).toLocaleString("en-IN")}) recorded successfully!`
+              : `Payment of ₹${paymentData.amount.toLocaleString("en-IN")} recorded successfully!`
+            : `Outstanding balance of ₹${(paymentData.discount || 0).toLocaleString("en-IN")} cleared as discount successfully!`,
         type: "success",
       });
 

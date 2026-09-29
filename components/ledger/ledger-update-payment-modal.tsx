@@ -81,6 +81,18 @@ export function LedgerUpdatePaymentModal({
   const maxPayable = Math.max(0, outstanding - numDiscount);
   const remainingAfterPayment = Math.max(0, outstanding - numDiscount - numAmount);
 
+  const handleClearAsDiscount = () => {
+    if (isFullyPaid || outstanding <= 0) return;
+    setDiscount(outstanding);
+    setAmount(0);
+    setPaymentType("full");
+    setPaymentMode("Discount / Waiver");
+    if (!remarks.trim()) {
+      setRemarks("Remaining balance cleared as discount");
+    }
+    setError("");
+  };
+
   const handleTypeChange = (type: "full" | "partial") => {
     if (isFullyPaid) return;
     setPaymentType(type);
@@ -110,6 +122,9 @@ export function LedgerUpdatePaymentModal({
       } else if (Number(amount) > newMaxPayable) {
         setAmount(newMaxPayable);
       }
+      if (disc >= outstanding && paymentMode !== "Discount / Waiver") {
+        setPaymentMode("Discount / Waiver");
+      }
     }
   };
 
@@ -122,7 +137,7 @@ export function LedgerUpdatePaymentModal({
       setError("");
       if (parsed < maxPayable && paymentType === "full") {
         setPaymentType("partial");
-      } else if (parsed === maxPayable && paymentType === "partial" && parsed > 0) {
+      } else if (parsed === maxPayable && paymentType === "partial" && (parsed > 0 || maxPayable === 0)) {
         setPaymentType("full");
       }
     }
@@ -148,7 +163,7 @@ export function LedgerUpdatePaymentModal({
       return;
     }
     if (numAmount === 0 && numDiscount <= 0) {
-      setError("Please enter a valid payment amount greater than zero.");
+      setError("Please enter a valid payment amount or discount greater than zero.");
       return;
     }
 
@@ -159,12 +174,12 @@ export function LedgerUpdatePaymentModal({
       await paymentService.create({
         recordId: record.id,
         amount: numAmount,
-        discount: paymentType === "full" ? numDiscount : 0,
+        discount: numDiscount,
         payment_mode: paymentMode,
         payment_method: paymentMode,
         payment_date: paymentDate,
-        notes: remarks.trim() || `Payment via ${paymentMode}`,
-        remark: remarks.trim() || `Payment via ${paymentMode}`,
+        notes: remarks.trim() || (numAmount === 0 && numDiscount > 0 ? "Remaining balance cleared as discount" : `Payment via ${paymentMode}`),
+        remark: remarks.trim() || (numAmount === 0 && numDiscount > 0 ? "Remaining balance cleared as discount" : `Payment via ${paymentMode}`),
       });
 
       onPaymentSuccess();
@@ -285,9 +300,20 @@ export function LedgerUpdatePaymentModal({
 
           {/* Discount Field (Editable on all payments) */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Discount (₹)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Discount (₹)
+              </label>
+              {outstanding > 0 && numDiscount < outstanding && (
+                <button
+                  type="button"
+                  onClick={handleClearAsDiscount}
+                  className="text-[11px] text-blue-600 hover:text-blue-750 hover:underline font-semibold cursor-pointer"
+                >
+                  Clear Remaining as Discount (₹0 Paid)
+                </button>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
                 ₹
@@ -307,6 +333,16 @@ export function LedgerUpdatePaymentModal({
               Upfront discount in ₹ deducted from payable balance.
             </p>
           </div>
+
+          {/* Banner when full remaining balance is cleared as discount */}
+          {numAmount === 0 && numDiscount > 0 && (
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                Remaining balance of ₹{numDiscount.toLocaleString("en-IN")} will be cleared as 100% discount with ₹0 collected.
+              </span>
+            </div>
+          )}
 
           {/* Payment Amount Input */}
           <div>
@@ -333,7 +369,7 @@ export function LedgerUpdatePaymentModal({
               </span>
               <input
                 type="number"
-                min="1"
+                min="0"
                 max={maxPayable}
                 step="any"
                 value={amount}
@@ -374,6 +410,7 @@ export function LedgerUpdatePaymentModal({
             >
               <option value="UPI">UPI / Google Pay / PhonePe / Paytm</option>
               <option value="Cash">Cash</option>
+              <option value="Discount / Waiver">Discount / Waiver</option>
               <option value="Bank Transfer">Bank Transfer (IMPS / NEFT / RTGS)</option>
               <option value="Cheque">Cheque</option>
               <option value="Card">Credit / Debit Card</option>
@@ -423,7 +460,12 @@ export function LedgerUpdatePaymentModal({
             </button>
             <button
               type="submit"
-              disabled={submitting || isFullyPaid || numAmount <= 0}
+              disabled={
+                submitting ||
+                isFullyPaid ||
+                (numAmount <= 0 && numDiscount <= 0) ||
+                numAmount > maxPayable
+              }
               className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
             >
               {submitting ? (
@@ -434,7 +476,11 @@ export function LedgerUpdatePaymentModal({
               ) : (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Save Payment</span>
+                  <span>
+                    {numAmount === 0 && numDiscount > 0
+                      ? "Clear with Discount (₹0)"
+                      : "Save Payment"}
+                  </span>
                 </>
               )}
             </button>

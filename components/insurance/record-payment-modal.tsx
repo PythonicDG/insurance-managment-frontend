@@ -63,6 +63,18 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
   const maxPayable = Math.max(0, outstandingBalance - numDiscount);
   const remainingBalance = Math.max(0, outstandingBalance - numDiscount - numAmount);
 
+  const handleClearAsDiscount = () => {
+    if (isFullyPaid || outstandingBalance <= 0) return;
+    setDiscount(outstandingBalance);
+    setAmount(0);
+    setPaymentType("full");
+    setPaymentMode("Discount / Waiver");
+    if (!remark.trim()) {
+      setRemark("Remaining balance cleared as discount");
+    }
+    setError("");
+  };
+
   const handleTypeChange = (type: "full" | "partial") => {
     if (isFullyPaid) return;
     setPaymentType(type);
@@ -92,6 +104,9 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
       } else if (Number(amount) > newMaxPayable) {
         setAmount(newMaxPayable);
       }
+      if (disc >= outstandingBalance && paymentMode !== "Discount / Waiver") {
+        setPaymentMode("Discount / Waiver");
+      }
     }
   };
 
@@ -106,7 +121,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
       setError("");
       if (parsed < maxPayable && paymentType === "full") {
         setPaymentType("partial");
-      } else if (parsed === maxPayable && paymentType === "partial" && parsed > 0) {
+      } else if (parsed === maxPayable && paymentType === "partial" && (parsed > 0 || maxPayable === 0)) {
         setPaymentType("full");
       }
     }
@@ -134,7 +149,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
       return;
     }
     if (numAmount === 0 && numDiscount <= 0) {
-      setError("Please enter a valid payment amount greater than zero.");
+      setError("Please enter a valid payment amount or discount greater than zero.");
       return;
     }
 
@@ -267,9 +282,20 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
 
             {/* Discount Field (Editable on all payments) */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Discount (₹)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Discount (₹)
+                </label>
+                {outstandingBalance > 0 && numDiscount < outstandingBalance && (
+                  <button
+                    type="button"
+                    onClick={handleClearAsDiscount}
+                    className="text-[11px] text-blue-600 hover:text-blue-750 hover:underline font-semibold cursor-pointer"
+                  >
+                    Clear Remaining as Discount (₹0 Paid)
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm font-semibold">
                   ₹
@@ -290,6 +316,16 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
               </p>
             </div>
 
+            {/* Banner when full remaining balance is cleared as discount */}
+            {numAmount === 0 && numDiscount > 0 && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Remaining balance of ₹{numDiscount.toLocaleString("en-IN")} will be cleared as 100% discount with ₹0 collected.
+                </span>
+              </div>
+            )}
+
             {/* Amount Field */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -303,7 +339,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                   type="number"
                   step="0.01"
                   required
-                  min="0.01"
+                  min="0"
                   max={outstandingBalance}
                   value={amount}
                   onChange={(e) => handleAmountChange(e.target.value)}
@@ -344,6 +380,7 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                 >
                   <option value="UPI">UPI</option>
                   <option value="Cash">Cash</option>
+                  <option value="Discount / Waiver">Discount / Waiver</option>
                   <option value="Credit Card">Credit Card</option>
                   <option value="Credit Card (Visa)">Credit Card (Visa)</option>
                   <option value="Debit Card">Debit Card</option>
@@ -404,12 +441,16 @@ function RecordPaymentDialog({ record, onClose, onSavePayment }: DialogProps) {
                 disabled={
                   submitting ||
                   isFullyPaid ||
-                  numAmount <= 0 ||
+                  (numAmount <= 0 && numDiscount <= 0) ||
                   numAmount > maxPayable
                 }
                 className="px-5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center min-w-[110px]"
               >
-                {submitting ? "Saving..." : "Save Payment"}
+                {submitting
+                  ? "Saving..."
+                  : numAmount === 0 && numDiscount > 0
+                  ? "Clear with Discount (₹0)"
+                  : "Save Payment"}
               </button>
             </div>
           </form>
