@@ -8,13 +8,10 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Helper to get token from session or persistent storage
+// Authentication is intentionally tab-scoped so closing the tab/browser ends it.
 const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null;
-  return (
-    sessionStorage.getItem("insure_token") ||
-    localStorage.getItem("insure_token")
-  );
+  return sessionStorage.getItem("insure_token");
 };
 
 // Attach token to outgoing requests if present (backward compatibility fallback)
@@ -457,9 +454,7 @@ export const authService = {
   getCurrentUser(): UserProfile | null {
     if (typeof window === "undefined") return null;
     try {
-      const saved =
-        sessionStorage.getItem("insure_user") ||
-        localStorage.getItem("insure_user");
+      const saved = sessionStorage.getItem("insure_user");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -470,7 +465,6 @@ export const authService = {
     if (typeof window === "undefined") return false;
     return Boolean(
       sessionStorage.getItem("insure_user") ||
-      localStorage.getItem("insure_user") ||
       getAuthToken()
     );
   },

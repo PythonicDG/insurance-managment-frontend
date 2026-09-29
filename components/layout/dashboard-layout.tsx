@@ -37,24 +37,17 @@ export function DashboardLayout({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    let cachedUser = sessionStorage.getItem("insure_user");
-    let cachedToken = sessionStorage.getItem("insure_token");
+    let cancelled = false;
 
-    // Restore from localStorage if rememberMe was used and sessionStorage is empty in this tab
-    if (!cachedToken && typeof localStorage !== "undefined") {
-      const localToken = localStorage.getItem("insure_token");
-      if (localToken) {
-        cachedToken = localToken;
-        sessionStorage.setItem("insure_token", localToken);
-      }
-    }
-    if (!cachedUser && typeof localStorage !== "undefined") {
-      const localUser = localStorage.getItem("insure_user");
-      if (localUser) {
-        cachedUser = localUser;
-        sessionStorage.setItem("insure_user", localUser);
-      }
-    }
+    const cachedUser = sessionStorage.getItem("insure_user");
+    const cachedToken = sessionStorage.getItem("insure_token");
+
+    // Purge persistent auth data created by older releases. UI preferences may
+    // remain in localStorage, but credentials must never survive the tab.
+    localStorage.removeItem("insure_token");
+    localStorage.removeItem("insure_user");
+    localStorage.removeItem("insure_last_activity");
+    localStorage.removeItem("insure_remember_user");
 
     // If no session exists in either storage, redirect to login
     if (!cachedToken && !cachedUser) {
@@ -62,21 +55,31 @@ export function DashboardLayout({
       return;
     }
 
-    // Session exists, allow rendering layout immediately
-    setIsAuthChecked(true);
+    // Do not render protected content until the backend confirms that this is
+    // still the account's one active device.
+    const verifyActiveSession = async () => {
+      try {
+        const user = await authService.getProfile();
+        if (cancelled) return;
 
-    // Verify active session with backend via HttpOnly cookie or token header
-    authService
-      .getProfile()
-      .then((user) => {
         if (user) {
           sessionStorage.setItem("insure_user", JSON.stringify(user));
         }
         setIsAuthChecked(true);
-      })
-      .catch((err) => {
-        // If unauthenticated or session expired (401), redirect to login
-        if (err?.response?.status === 401) {
+      } catch (err: unknown) {
+        if (cancelled) return;
+
+        const status =
+          typeof err === "object" &&
+          err !== null &&
+          "response" in err &&
+          typeof err.response === "object" &&
+          err.response !== null &&
+          "status" in err.response
+            ? err.response.status
+            : undefined;
+
+        if (status === 401) {
           sessionStorage.removeItem("insure_token");
           sessionStorage.removeItem("insure_user");
           sessionStorage.removeItem("insure_last_activity");
@@ -85,7 +88,26 @@ export function DashboardLayout({
           localStorage.removeItem("insure_last_activity");
           router.replace("/?reason=session_expired");
         }
-      });
+      }
+    };
+
+    const verifyWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void verifyActiveSession();
+      }
+    };
+
+    void verifyActiveSession();
+    const sessionCheckInterval = window.setInterval(verifyActiveSession, 15_000);
+    window.addEventListener("focus", verifyWhenVisible);
+    document.addEventListener("visibilitychange", verifyWhenVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(sessionCheckInterval);
+      window.removeEventListener("focus", verifyWhenVisible);
+      document.removeEventListener("visibilitychange", verifyWhenVisible);
+    };
   }, [router]);
 
   // Prevent flash before auth check

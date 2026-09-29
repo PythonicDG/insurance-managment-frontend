@@ -10,28 +10,9 @@ import { Toast, ToastType } from "@/components/ui/toast";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return localStorage.getItem("insure_remember_user") || "";
-      } catch {
-        return "";
-      }
-    }
-    return "";
-  });
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return Boolean(localStorage.getItem("insure_remember_user"));
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
@@ -61,12 +42,15 @@ export default function LoginPage() {
           );
         }
 
-        const token =
-          sessionStorage.getItem("insure_token") ||
-          localStorage.getItem("insure_token");
-        const user =
-          sessionStorage.getItem("insure_user") ||
-          localStorage.getItem("insure_user");
+        // Remove auth data saved by older releases. Authentication is now
+        // deliberately scoped to this browser tab via sessionStorage.
+        localStorage.removeItem("insure_token");
+        localStorage.removeItem("insure_user");
+        localStorage.removeItem("insure_last_activity");
+        localStorage.removeItem("insure_remember_user");
+
+        const token = sessionStorage.getItem("insure_token");
+        const user = sessionStorage.getItem("insure_user");
 
         // Redirect to dashboard if authenticated in this tab
         if ((token || user) && !reason) {
@@ -102,13 +86,11 @@ export default function LoginPage() {
         ? {
             email: trimmedUser,
             password: password,
-            remember_me: rememberMe,
             include_token: true,
           }
         : {
             username: trimmedUser,
             password: password,
-            remember_me: rememberMe,
             include_token: true,
           };
 
@@ -130,26 +112,10 @@ export default function LoginPage() {
         if (typeof window !== "undefined") {
           if (token) {
             sessionStorage.setItem("insure_token", token);
-            if (rememberMe) {
-              localStorage.setItem("insure_token", token);
-            } else {
-              localStorage.removeItem("insure_token");
-            }
           }
 
           if (user) {
             sessionStorage.setItem("insure_user", JSON.stringify(user));
-            if (rememberMe) {
-              localStorage.setItem("insure_user", JSON.stringify(user));
-            } else {
-              localStorage.removeItem("insure_user");
-            }
-          }
-
-          if (rememberMe) {
-            localStorage.setItem("insure_remember_user", trimmedUser);
-          } else {
-            localStorage.removeItem("insure_remember_user");
           }
         }
 
@@ -309,21 +275,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between pt-0.5 flex-wrap gap-2">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  disabled={loading}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer accent-blue-600"
-                />
-                <span className="text-xs text-slate-600 font-normal">
-                  Remember me
-                </span>
-              </label>
-
+            {/* Forgot Password */}
+            <div className="flex items-center justify-end pt-0.5">
               <Link
                 href="/change-password"
                 className="text-xs font-medium text-blue-600 hover:text-blue-700 transition"
