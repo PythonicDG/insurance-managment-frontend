@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, use } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +28,8 @@ import {
   X,
   Upload,
   Printer,
+  MoreVertical,
+  Check,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -84,6 +87,13 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const [viewRecord, setViewRecord] = useState<InsuranceRecordItem | null>(null);
   const [editRecord, setEditRecord] = useState<InsuranceRecordItem | null>(null);
   const [paymentRecord, setPaymentRecord] = useState<InsuranceRecordItem | null>(null);
+
+  // Floating Action Menu state for Insurance History table
+  const [actionMenu, setActionMenu] = useState<{
+    record: InsuranceRecordItem;
+    top: number;
+    left: number;
+  } | null>(null);
 
   // Edit Customer Modal State
   const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
@@ -248,6 +258,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       } else if (sortField === "premium") {
         aVal = Number(a.total_premium) || 0;
         bVal = Number(b.total_premium) || 0;
+      } else if (sortField === "discount") {
+        aVal = Number(a.discount || 0);
+        bVal = Number(b.discount || 0);
       } else if (sortField === "paid") {
         aVal = Number(a.paid_amount ?? a.total_paid ?? 0);
         bVal = Number(b.paid_amount ?? b.total_paid ?? 0);
@@ -277,7 +290,46 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     }
   };
 
-  // Status Badge Helper
+  // Close floating action menu on window scroll or resize
+  useEffect(() => {
+    if (!actionMenu) return;
+    const handleCloseMenu = () => setActionMenu(null);
+    window.addEventListener("scroll", handleCloseMenu, true);
+    window.addEventListener("resize", handleCloseMenu);
+    return () => {
+      window.removeEventListener("scroll", handleCloseMenu, true);
+      window.removeEventListener("resize", handleCloseMenu);
+    };
+  }, [actionMenu]);
+
+  // Handle Toggle Action Menu
+  const handleToggleActionMenu = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    record: InsuranceRecordItem
+  ) => {
+    event.stopPropagation();
+
+    if (actionMenu?.record.id === record.id) {
+      setActionMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 192;
+    const menuHeight = 160;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    setActionMenu({
+      record,
+      top:
+        spaceBelow >= menuHeight + 8
+          ? rect.bottom + 6
+          : Math.max(8, rect.top - menuHeight - 6),
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    });
+  };
+
+  // Status Badge Helper matching Ledger & Insurance Records
   const renderPaymentStatusBadge = (rec: InsuranceRecordItem) => {
     const total = Number(rec.total_premium) || 0;
     const discount = Number(rec.discount || 0);
@@ -292,20 +344,20 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
     if (rec.payment_status === "PAID" || (balance <= 0 && total > 0)) {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
           Paid
         </span>
       );
     }
     if (rec.payment_status === "PARTIAL" || (paid > 0 && balance > 0)) {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-600 border border-amber-200">
           Partial
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-600 border border-rose-200">
         Unpaid
       </span>
     );
@@ -701,80 +753,89 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                       </Link>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                    <>
+                      <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
                         <thead>
-                          <tr className="bg-slate-50/70 border-b border-slate-100 text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          <tr className="bg-slate-50/70 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="w-[95px] py-2.5 pl-4 pr-2 cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("entry_date")}
                             >
                               <div className="flex items-center gap-1">
                                 <span>DATE</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "entry_date" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="min-w-[120px] max-w-[170px] py-2.5 px-2.5 cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("company")}
                             >
                               <div className="flex items-center gap-1">
-                                <span>INSURANCE COMPANY</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                                <span>COMPANY</span>
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "company" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="w-[115px] py-2.5 px-2 cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("vehicle")}
                             >
                               <div className="flex items-center gap-1">
-                                <span>VEHICLE NUMBER</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                                <span>VEHICLE</span>
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "vehicle" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="w-[95px] py-2.5 px-2 text-right cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("premium")}
                             >
-                              <div className="flex items-center gap-1">
-                                <span>TOTAL PREMIUM</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                              <div className="flex items-center justify-end gap-1">
+                                <span>PREMIUM</span>
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "premium" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
-                            <th className="py-3 px-4 select-none text-slate-500 font-bold">
-                              <span>DISCOUNT</span>
+                            <th
+                              className="w-[75px] py-2.5 px-2 text-right cursor-pointer select-none hover:text-slate-800"
+                              onClick={() => handleSort("discount")}
+                            >
+                              <div className="flex items-center justify-end gap-1">
+                                <span>DISCOUNT</span>
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "discount" ? "text-blue-600" : "text-slate-400"}`} />
+                              </div>
                             </th>
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="w-[90px] py-2.5 px-2 text-right cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("paid")}
                             >
-                              <div className="flex items-center gap-1">
-                                <span>PAID AMOUNT</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                              <div className="flex items-center justify-end gap-1">
+                                <span>PAID</span>
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "paid" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="w-[90px] py-2.5 px-2 text-right cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("balance")}
                             >
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center justify-end gap-1">
                                 <span>BALANCE</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "balance" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
                             <th
-                              className="py-3 px-4 cursor-pointer select-none hover:text-slate-700"
+                              className="w-[85px] py-2.5 px-2 text-center cursor-pointer select-none hover:text-slate-800"
                               onClick={() => handleSort("status")}
                             >
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center justify-center gap-1">
                                 <span>STATUS</span>
-                                <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                                <ArrowUpDown className={`w-3 h-3 ${sortField === "status" ? "text-blue-600" : "text-slate-400"}`} />
                               </div>
                             </th>
-                            <th className="py-3 px-4 text-center">ACTIONS</th>
+                            <th className="sticky right-0 z-10 w-[54px] py-2.5 px-2 text-center bg-slate-50 shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)]">
+                              ACTIONS
+                            </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 text-xs">
                           {sortedRecords.map((rec) => {
                             const total = Number(rec.total_premium) || 0;
                             const discount = Number(rec.discount || 0);
@@ -788,42 +849,58 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                             const balance = Math.max(0, isNaN(rawBal) ? 0 : rawBal);
 
                             return (
-                              <tr key={rec.id} className="hover:bg-slate-50/60 transition-colors">
+                              <tr
+                                key={rec.id}
+                                onClick={() => setViewRecord(rec)}
+                                className="hover:bg-slate-50/70 cursor-pointer transition-colors group"
+                              >
                                 {/* Date */}
-                                <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
+                                <td className="py-2.5 pl-4 pr-2 text-slate-600 font-medium whitespace-nowrap">
                                   {formatDisplayDate(rec.entry_date || rec.created_at)}
                                 </td>
 
-                                {/* Company */}
-                                <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
-                                  {rec.insurance_company?.name || "—"}
+                                {/* Insurance Company */}
+                                <td
+                                  className="py-2.5 px-2.5 font-bold text-slate-900 whitespace-nowrap min-w-0"
+                                  title={rec.insurance_company?.name || undefined}
+                                >
+                                  <div className="truncate max-w-[150px] sm:max-w-[180px]">
+                                    {rec.insurance_company?.name || "—"}
+                                  </div>
                                 </td>
 
-                                {/* Vehicle Number (Figma Badge Style) */}
-                                <td className="py-3.5 px-4 whitespace-nowrap">
-                                  <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 font-bold font-mono text-xs border border-slate-200">
+                                {/* Vehicle Number */}
+                                <td className="py-2.5 px-2 whitespace-nowrap">
+                                  <span
+                                    className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold font-mono text-[11px] border border-slate-200/80"
+                                    title={rec.vehicle?.vehicle_number || undefined}
+                                  >
                                     {rec.vehicle?.vehicle_number || "—"}
                                   </span>
                                 </td>
 
                                 {/* Total Premium */}
-                                <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                                <td className="py-2.5 px-2 font-semibold text-slate-900 whitespace-nowrap text-right">
                                   {formatCurrency(total)}
                                 </td>
 
                                 {/* Discount */}
-                                <td className="py-3.5 px-4 font-medium text-amber-700 whitespace-nowrap">
-                                  {discount > 0 ? formatCurrency(discount) : "—"}
+                                <td className="py-2.5 px-2 font-medium whitespace-nowrap text-right">
+                                  {discount > 0 ? (
+                                    <span className="text-amber-700">{formatCurrency(discount)}</span>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
                                 </td>
 
-                                {/* Paid Amount (Green text) */}
-                                <td className="py-3.5 px-4 font-semibold text-emerald-600 whitespace-nowrap">
+                                {/* Paid Amount */}
+                                <td className="py-2.5 px-2 font-semibold text-emerald-600 whitespace-nowrap text-right">
                                   {formatCurrency(paid)}
                                 </td>
 
-                                {/* Balance (Red if > 0, gray if 0) */}
+                                {/* Balance */}
                                 <td
-                                  className={`py-3.5 px-4 whitespace-nowrap ${
+                                  className={`py-2.5 px-2 whitespace-nowrap text-right ${
                                     balance > 0 ? "font-bold text-red-600" : "text-slate-500 font-medium"
                                   }`}
                                 >
@@ -831,60 +908,30 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                                 </td>
 
                                 {/* Payment Status Badge */}
-                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                <td className="py-2.5 px-2 whitespace-nowrap text-center">
                                   {renderPaymentStatusBadge(rec)}
                                 </td>
 
-                                {/* Action Icons (Eye, Edit, Payment) */}
-                                <td className="py-3.5 px-4 whitespace-nowrap text-center">
-                                  <div className="inline-flex items-center justify-center gap-2">
-                                    {/* View Eye Icon */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setViewRecord(rec)}
-                                      className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                                      title="View Policy Details"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </button>
-
-                                     {/* Edit Pencil Icon */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditRecord(rec)}
-                                      className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                                      title="Edit Policy"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </button>
-
-                                    {/* Print Transactions Statement Button */}
-                                    <button
-                                      type="button"
-                                      disabled={printingRecordId === rec.id}
-                                      onClick={() => handlePrintRecordStatement(rec)}
-                                      className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-60"
-                                      title={`Print Transaction Statement for Policy #${rec.policy_number}`}
-                                    >
-                                      {printingRecordId === rec.id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                      ) : (
-                                        <Printer className="w-4 h-4" />
-                                      )}
-                                    </button>
-
-                                    {/* Make Payment Button if balance > 0 */}
-                                    {balance > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setPaymentRecord(rec)}
-                                        className="p-1 text-amber-500 hover:text-amber-700 transition-colors cursor-pointer"
-                                        title="Record Payment"
-                                      >
-                                        <CreditCard className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                  </div>
+                                {/* Actions Column (Compact Sticky Right) */}
+                                <td
+                                  className="sticky right-0 z-[1] bg-white py-2 px-2 whitespace-nowrap text-center shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)] transition-colors group-hover:bg-slate-50"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={(event) => handleToggleActionMenu(event, rec)}
+                                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+                                      actionMenu?.record.id === rec.id
+                                        ? "border-blue-200 bg-blue-50 text-blue-600"
+                                        : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-700"
+                                    }`}
+                                    title="Policy actions"
+                                    aria-label={`Actions for policy ${rec.policy_number || "record"}`}
+                                    aria-haspopup="menu"
+                                    aria-expanded={actionMenu?.record.id === rec.id}
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -892,7 +939,46 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                         </tbody>
                       </table>
                     </div>
-                  )}
+
+                    {/* Compact Table Summary Footer */}
+                    <div className="px-4 sm:px-5 py-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-slate-500 bg-slate-50/40">
+                      <span>
+                        Showing <strong className="text-slate-800">{records.length}</strong> record{records.length === 1 ? "" : "s"}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-3.5 text-xs">
+                        <span>
+                          Total: <strong className="text-slate-800">{formatCurrency(records.reduce((s, r) => s + (Number(r.total_premium) || 0), 0))}</strong>
+                        </span>
+                        {records.some((r) => Number(r.discount || 0) > 0) && (
+                          <span className="text-amber-700">
+                            Disc: <strong>{formatCurrency(records.reduce((s, r) => s + (Number(r.discount) || 0), 0))}</strong>
+                          </span>
+                        )}
+                        <span className="text-emerald-600">
+                          Paid: <strong>{formatCurrency(records.reduce((s, r) => s + (Number(r.paid_amount ?? r.total_paid ?? 0)), 0))}</strong>
+                        </span>
+                        {(() => {
+                          const totalBal = records.reduce((s, r) => {
+                            const tot = Number(r.total_premium) || 0;
+                            const disc = Number(r.discount || 0);
+                            const pd = Number(r.paid_amount ?? r.total_paid ?? 0);
+                            const raw = r.balance !== undefined && r.balance !== null
+                              ? Number(r.balance)
+                              : r.outstanding !== undefined && r.outstanding !== null
+                              ? Number(r.outstanding)
+                              : Math.max(0, tot - disc - pd);
+                            return s + Math.max(0, isNaN(raw) ? 0 : raw);
+                          }, 0);
+                          return totalBal > 0 ? (
+                            <span className="text-red-600">
+                              Balance: <strong>{formatCurrency(totalBal)}</strong>
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+                  </>
+                )}
                 </div>
 
                 {/* FIGMA LINKED VEHICLES SECTION */}
@@ -1363,6 +1449,120 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         message={toast.message}
         onClose={() => setToast((t) => ({ ...t, open: false }))}
       />
+
+      {/* FLOATING ACTION MENU PORTAL */}
+      {typeof document !== "undefined" &&
+        actionMenu &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActionMenu(null);
+              }}
+              aria-label="Close actions menu"
+            />
+            <div
+              role="menu"
+              aria-label="Policy actions"
+              className="fixed z-50 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100"
+              style={{ top: actionMenu.top, left: actionMenu.left }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  setViewRecord(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-blue-600 cursor-pointer"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span>View Details</span>
+              </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  setEditRecord(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-blue-600 cursor-pointer"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit Policy</span>
+              </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                disabled={printingRecordId === actionMenu.record.id}
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handlePrintRecordStatement(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 cursor-pointer"
+              >
+                {printingRecordId === actionMenu.record.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+                ) : (
+                  <Printer className="h-3.5 w-3.5" />
+                )}
+                <span>Print Statement</span>
+              </button>
+
+              <div className="my-1 border-t border-slate-100" />
+
+              {(() => {
+                const total = Number(actionMenu.record.total_premium) || 0;
+                const discount = Number(actionMenu.record.discount || 0);
+                const paid = Number(actionMenu.record.paid_amount ?? actionMenu.record.total_paid ?? 0);
+                const rawBal =
+                  actionMenu.record.balance !== undefined && actionMenu.record.balance !== null
+                    ? Number(actionMenu.record.balance)
+                    : actionMenu.record.outstanding !== undefined && actionMenu.record.outstanding !== null
+                    ? Number(actionMenu.record.outstanding)
+                    : Math.max(0, total - discount - paid);
+                const balance = Math.max(0, isNaN(rawBal) ? 0 : rawBal);
+                const isFullyPaid = balance <= 0 && total > 0;
+
+                return (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={isFullyPaid}
+                    onClick={() => {
+                      const record = actionMenu.record;
+                      setActionMenu(null);
+                      setPaymentRecord(record);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-default disabled:text-emerald-600 disabled:opacity-70 cursor-pointer"
+                    title={
+                      isFullyPaid
+                        ? "Policy is fully paid (₹0 balance)"
+                        : "Record payment for this policy"
+                    }
+                  >
+                    {isFullyPaid ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <CreditCard className="h-3.5 w-3.5" />
+                    )}
+                    <span>{isFullyPaid ? "Paid in Full" : "Record Payment"}</span>
+                  </button>
+                );
+              })()}
+            </div>
+          </>,
+          document.body
+        )}
     </DashboardLayout>
   );
 }
