@@ -27,6 +27,7 @@ import {
   WhatsAppTestPayload,
 } from "@/lib/api";
 import { ToastType } from "@/components/ui/toast";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 
 interface WhatsAppSettingsTabProps {
   showToast: (type: ToastType, title: string, message?: string) => void;
@@ -65,6 +66,9 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
   // Logs state
   const [logs, setLogs] = useState<WhatsAppMessageLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
+  const [logsCount, setLogsCount] = useState(0);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsPageSize, setLogsPageSize] = useState(10);
   const [resendingLogId, setResendingLogId] = useState<number | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
 
@@ -102,19 +106,28 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
   const fetchLogs = useCallback(async () => {
     try {
       setLoadingLogs(true);
-      const res = await whatsAppService.getLogs({ page_size: 15 });
+      const res = await whatsAppService.getLogs({ page: logsPage, page_size: logsPageSize });
       setLogs(res.results || []);
+      setLogsCount(res.count || 0);
+
+      const totalPages = Math.max(1, Math.ceil((res.count || 0) / logsPageSize));
+      if (logsPage > totalPages) {
+        setLogsPage(totalPages);
+      }
     } catch {
       // Non-critical, ignore
     } finally {
       setLoadingLogs(false);
     }
-  }, []);
+  }, [logsPage, logsPageSize]);
 
   useEffect(() => {
     fetchConfig();
+  }, [fetchConfig]);
+
+  useEffect(() => {
     fetchLogs();
-  }, [fetchConfig, fetchLogs]);
+  }, [fetchLogs]);
 
   // Save Config
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -751,8 +764,9 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
             No WhatsApp messages sent yet. Use the test tool above or create an insurance policy to test!
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
               <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="py-3 px-4">Date / Time</th>
@@ -842,8 +856,20 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+            <PaginationControls
+              currentPage={logsPage}
+              pageSize={logsPageSize}
+              totalCount={logsCount}
+              itemLabel="delivery logs"
+              onPageChange={setLogsPage}
+              onPageSizeChange={(pageSize) => {
+                setLogsPageSize(pageSize);
+                setLogsPage(1);
+              }}
+            />
+          </>
         )}
       </div>
     </div>

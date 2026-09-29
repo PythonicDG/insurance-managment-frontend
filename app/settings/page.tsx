@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Building2,
   Plus,
@@ -34,6 +34,7 @@ import {
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
 import { SetExportPinModal } from "@/components/modals/set-export-pin-modal";
 import { WhatsAppSettingsTab } from "@/components/settings/whatsapp-settings-tab";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<"companies" | "business" | "account" | "whatsapp">("companies");
@@ -43,6 +44,8 @@ export default function SettingsPage() {
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [companiesPage, setCompaniesPage] = useState(1);
+  const [companiesPageSize, setCompaniesPageSize] = useState(10);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -365,6 +368,12 @@ export default function SettingsPage() {
   const totalCompaniesCount = companies.length;
   const activeCompaniesCount = companies.filter((c) => c.is_active).length;
   const inactiveCompaniesCount = totalCompaniesCount - activeCompaniesCount;
+  const companiesTotalPages = Math.max(1, Math.ceil(totalCompaniesCount / companiesPageSize));
+  const safeCompaniesPage = Math.min(companiesPage, companiesTotalPages);
+  const paginatedCompanies = useMemo(() => {
+    const start = (safeCompaniesPage - 1) * companiesPageSize;
+    return companies.slice(start, start + companiesPageSize);
+  }, [companies, companiesPageSize, safeCompaniesPage]);
 
   return (
     <DashboardLayout title="Settings">
@@ -510,14 +519,20 @@ export default function SettingsPage() {
                     type="text"
                     placeholder="Search companies..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCompaniesPage(1);
+                    }}
                     className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   />
                 </div>
 
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setCompaniesPage(1);
+                  }}
                   aria-label="Filter companies by status"
                   className="px-2.5 sm:px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100/60 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer shrink-0"
                 >
@@ -584,7 +599,7 @@ export default function SettingsPage() {
                 <>
                   {/* ================= MOBILE: RECORD CARDS (< md) ================= */}
                   <div className="md:hidden p-3.5 space-y-3">
-                    {companies.map((company) => (
+                    {paginatedCompanies.map((company) => (
                       <div
                         key={company.id}
                         className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-3.5 space-y-3"
@@ -665,7 +680,7 @@ export default function SettingsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-sm">
-                        {companies.map((company) => (
+                        {paginatedCompanies.map((company) => (
                           <tr
                             key={company.id}
                             className="hover:bg-slate-50/60 transition-colors group"
@@ -746,6 +761,17 @@ export default function SettingsPage() {
                       </tbody>
                     </table>
                   </div>
+                  <PaginationControls
+                    currentPage={safeCompaniesPage}
+                    pageSize={companiesPageSize}
+                    totalCount={totalCompaniesCount}
+                    itemLabel="companies"
+                    onPageChange={setCompaniesPage}
+                    onPageSizeChange={(pageSize) => {
+                      setCompaniesPageSize(pageSize);
+                      setCompaniesPage(1);
+                    }}
+                  />
                 </>
               )}
             </div>
