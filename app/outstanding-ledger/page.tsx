@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   Eye,
@@ -12,6 +13,8 @@ import {
   FileText,
   Printer,
   AlertCircle,
+  MoreVertical,
+  CreditCard,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
@@ -23,8 +26,11 @@ import {
   ledgerService,
   settingsService,
 } from "@/lib/api";
-import { LedgerKpiCards, formatINR } from "@/components/ledger/ledger-kpi-cards";
-import { DateRangePopover } from "@/components/ledger/date-range-popover";
+import { LedgerKpiCards } from "@/components/ledger/ledger-kpi-cards";
+import {
+  DashboardDateFilter,
+  DashboardDateRange,
+} from "@/components/dashboard/dashboard-date-filter";
 import { LedgerUpdatePaymentModal } from "@/components/ledger/ledger-update-payment-modal";
 import { LedgerRecordDetailModal } from "@/components/ledger/ledger-record-detail-modal";
 import { Toast, ToastType } from "@/components/ui/toast";
@@ -38,7 +44,7 @@ export default function OutstandingLedgerPage() {
   const [records, setRecords] = useState<LedgerRecord[]>([]);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,6 +55,10 @@ export default function OutstandingLedgerPage() {
   // Filters state
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [dateFilter, setDateFilter] = useState<DashboardDateRange>({
+    preset: "all",
+    label: "All Time",
+  });
   const [selectedCompany, setSelectedCompany] = useState("all");
   // Default to 'outstanding_partial' matching Figma screenshot
   const [selectedStatus, setSelectedStatus] = useState("outstanding_partial");
@@ -60,6 +70,31 @@ export default function OutstandingLedgerPage() {
 
   const [selectedRecordForPayment, setSelectedRecordForPayment] = useState<LedgerRecord | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+  const [actionMenu, setActionMenu] = useState<{
+    record: LedgerRecord;
+    top: number;
+    left: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!actionMenu) return;
+
+    const closeMenu = () => setActionMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [actionMenu]);
 
   // Agency settings for PDF / print branding
   const [agencySettings, setAgencySettings] = useState<BusinessSettings | null>(null);
@@ -97,7 +132,7 @@ export default function OutstandingLedgerPage() {
 
   // Fetch ledger records & summary
   const fetchLedger = useCallback(
-    async (pageToLoad = currentPage) => {
+    async (pageToLoad: number) => {
       setLoading(true);
       try {
         const res = await ledgerService.getLedger({
@@ -165,6 +200,38 @@ export default function OutstandingLedgerPage() {
     setIsPaymentModalOpen(true);
   };
 
+  const handleDateFilterChange = (range: DashboardDateRange) => {
+    setDateFilter(range);
+    setFromDate(range.startDate || "");
+    setToDate(range.endDate || "");
+  };
+
+  const handleToggleActionMenu = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    record: LedgerRecord
+  ) => {
+    event.stopPropagation();
+
+    if (actionMenu?.record.id === record.id) {
+      setActionMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 192;
+    const menuHeight = 94;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    setActionMenu({
+      record,
+      top:
+        spaceBelow >= menuHeight + 8
+          ? rect.bottom + 6
+          : Math.max(8, rect.top - menuHeight - 6),
+      left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+    });
+  };
+
   const handlePaymentSuccess = () => {
     showToast("success", "Payment Updated", "Payment recorded successfully and ledger recalculated.");
     fetchLedger(currentPage);
@@ -173,6 +240,7 @@ export default function OutstandingLedgerPage() {
   const handleResetFilters = () => {
     setFromDate("");
     setToDate("");
+    setDateFilter({ preset: "all", label: "All Time" });
     setSelectedCompany("all");
     setSelectedStatus("outstanding_partial");
     setSearchQuery("");
@@ -382,36 +450,29 @@ export default function OutstandingLedgerPage() {
   return (
     <DashboardLayout title="Outstanding / Ledger" subtitle="Finance / Outstanding">
       <div className="space-y-5 sm:space-y-6">
-        {/* Top 4 KPI Summary Cards matching Figma */}
-        <LedgerKpiCards summary={summary} loading={loading && !summary} />
-
-        {/* Filters Card matching Figma */}
+        {/* Dashboard-style filters */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. Date Range Filter */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Date Range
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 sm:gap-4 items-end">
+            {/* Month, Year and custom period filter shared with Dashboard */}
+            <div className="sm:col-span-2 xl:col-span-3">
+              <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Date / Period
               </label>
-              <DateRangePopover
-                fromDate={fromDate}
-                toDate={toDate}
-                onChange={(from, to) => {
-                  setFromDate(from);
-                  setToDate(to);
-                }}
+              <DashboardDateFilter
+                value={dateFilter}
+                onChange={handleDateFilterChange}
+                disabled={loading && !summary}
               />
             </div>
 
-            {/* 2. Insurance Company Filter */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Insurance Company
+            <div className="xl:col-span-1">
+              <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Company
               </label>
               <select
                 value={selectedCompany}
                 onChange={(e) => setSelectedCompany(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs min-h-[38px]"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs min-h-[34px] truncate"
               >
                 <option value="all">All companies</option>
                 {companies.map((co) => (
@@ -422,15 +483,14 @@ export default function OutstandingLedgerPage() {
               </select>
             </div>
 
-            {/* 3. Payment Status Filter */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Payment Status
+            <div className="xl:col-span-1">
+              <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Status
               </label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs min-h-[38px]"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs min-h-[34px] truncate"
               >
                 <option value="outstanding_partial">Outstanding &amp; Partial</option>
                 <option value="outstanding">Outstanding Only</option>
@@ -440,10 +500,9 @@ export default function OutstandingLedgerPage() {
               </select>
             </div>
 
-            {/* 4. Search Customer/Vehicle */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Search Customer/Vehicle
+            <div className="xl:col-span-2">
+              <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Search Records
               </label>
               <div className="relative">
                 <input
@@ -451,13 +510,16 @@ export default function OutstandingLedgerPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search name or vehicle number"
-                  className="w-full pl-3 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs min-h-[38px]"
+                  className="w-full pl-3 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs min-h-[34px]"
                 />
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
           </div>
         </div>
+
+        {/* Summary cards stay driven by the existing ledger calculations */}
+        <LedgerKpiCards summary={summary} loading={loading && !summary} />
 
         {/* Action Bar matching Insurance Records tab */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
@@ -533,19 +595,21 @@ export default function OutstandingLedgerPage() {
 
           {/* Table Container */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-              <thead className="bg-white border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <table className="w-full min-w-[960px] table-fixed text-left text-xs border-collapse">
+              <thead className="bg-slate-50/70 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4 sm:px-6">CUSTOMER NAME</th>
-                  <th className="py-3.5 px-4">PHONE</th>
-                  <th className="py-3.5 px-4">VEHICLE NUMBER</th>
-                  <th className="py-3.5 px-4">INSURANCE COMPANY</th>
-                  <th className="py-3.5 px-4">TOTAL PREMIUM</th>
-                  <th className="py-3.5 px-4">DISCOUNT</th>
-                  <th className="py-3.5 px-4">PAID AMOUNT</th>
-                  <th className="py-3.5 px-4">OUTSTANDING</th>
-                  <th className="py-3.5 px-4">STATUS</th>
-                  <th className="py-3.5 px-4 sm:px-6 text-right">ACTIONS</th>
+                  <th className="w-[136px] py-3 pl-4 pr-2.5">CUSTOMER</th>
+                  <th className="w-[122px] py-3 px-2.5">PHONE</th>
+                  <th className="w-[112px] py-3 px-2.5">VEHICLE</th>
+                  <th className="w-[136px] py-3 px-2.5">COMPANY</th>
+                  <th className="w-[94px] py-3 px-2.5">PREMIUM</th>
+                  <th className="w-[78px] py-3 px-2.5">DISCOUNT</th>
+                  <th className="w-[86px] py-3 px-2.5">PAID</th>
+                  <th className="w-[104px] py-3 px-2.5">OUTSTANDING</th>
+                  <th className="w-[94px] py-3 px-2.5">STATUS</th>
+                  <th className="sticky right-0 z-10 w-[64px] py-3 px-2.5 text-center bg-slate-50 shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)]">
+                    ACTIONS
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -610,7 +674,6 @@ export default function OutstandingLedgerPage() {
                         : parseFloat(String(r.outstanding || 0));
 
                     const isPartial = r.status === "Partial";
-                    const isOutstanding = r.status === "Outstanding" || outstandingNum > 0 && !isPartial;
                     const isPaid = r.status === "Paid" || outstandingNum <= 0;
 
                     return (
@@ -619,47 +682,61 @@ export default function OutstandingLedgerPage() {
                         className="hover:bg-slate-50/70 transition-colors group"
                       >
                         {/* 1. Customer Name */}
-                        <td className="py-3.5 px-4 sm:px-6 font-bold text-slate-900 whitespace-nowrap">
-                          {r.customer_name || "—"}
+                        <td
+                          className="py-3 pl-4 pr-2.5 font-bold text-slate-900 whitespace-nowrap"
+                          title={r.customer_name || undefined}
+                        >
+                          <div className="truncate">{r.customer_name || "—"}</div>
                         </td>
 
                         {/* 2. Phone */}
-                        <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                          {formatPhone(r.customer_phone)}
+                        <td
+                          className="py-3 px-2.5 text-slate-600 whitespace-nowrap"
+                          title={formatPhone(r.customer_phone)}
+                        >
+                          <div className="truncate">{formatPhone(r.customer_phone)}</div>
                         </td>
 
                         {/* 3. Vehicle Number */}
-                        <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
-                          {r.vehicle_number || "—"}
+                        <td
+                          className="py-3 px-2.5 font-semibold text-slate-900 whitespace-nowrap"
+                          title={r.vehicle_number || undefined}
+                        >
+                          <div className="truncate font-mono text-[11px]">
+                            {r.vehicle_number || "—"}
+                          </div>
                         </td>
 
                         {/* 4. Insurance Company */}
-                        <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
-                          {r.insurance_company_name || "—"}
+                        <td
+                          className="py-3 px-2.5 text-slate-700 whitespace-nowrap"
+                          title={r.insurance_company_name || undefined}
+                        >
+                          <div className="truncate">{r.insurance_company_name || "—"}</div>
                         </td>
 
                         {/* 5. Total Premium */}
-                        <td className="py-3.5 px-4 font-medium text-slate-900 whitespace-nowrap">
+                        <td className="py-3 px-2.5 font-medium text-slate-900 whitespace-nowrap">
                           {formatCurrency(r.total_premium)}
                         </td>
 
                         {/* 6. Discount */}
-                        <td className="py-3.5 px-4 font-medium text-amber-700 whitespace-nowrap">
+                        <td className="py-3 px-2.5 font-medium text-amber-700 whitespace-nowrap">
                           {Number(r.discount || 0) > 0 ? formatCurrency(r.discount) : "—"}
                         </td>
 
                         {/* 7. Paid Amount */}
-                        <td className="py-3.5 px-4 font-medium text-slate-900 whitespace-nowrap">
+                        <td className="py-3 px-2.5 font-medium text-slate-900 whitespace-nowrap">
                           {formatCurrency(r.paid_amount)}
                         </td>
 
                         {/* 8. Outstanding */}
-                        <td className="py-3.5 px-4 font-bold text-red-500 whitespace-nowrap">
+                        <td className="py-3 px-2.5 font-bold text-red-500 whitespace-nowrap">
                           {formatCurrency(r.outstanding)}
                         </td>
 
-                        {/* 8. Status */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        {/* 9. Status */}
+                        <td className="py-3 px-2.5 whitespace-nowrap">
                           {isPaid ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
                               Paid
@@ -675,30 +752,23 @@ export default function OutstandingLedgerPage() {
                           )}
                         </td>
 
-                        {/* 9. Actions */}
-                        <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-3 sm:gap-4">
-                            {/* View Action with Eye Icon */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDetail(r)}
-                              className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 font-semibold text-xs transition-colors cursor-pointer"
-                              title="View Ledger & Transactions"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>View</span>
-                            </button>
-
-                            {/* Update Payment Action */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPayment(r)}
-                              className="text-blue-600 hover:text-blue-700 font-semibold text-xs transition-colors cursor-pointer"
-                              title="Record or Update Payment"
-                            >
-                              Update Payment
-                            </button>
-                          </div>
+                        {/* 10. Compact action menu */}
+                        <td className="sticky right-0 z-[1] bg-white py-3 px-2.5 whitespace-nowrap text-center shadow-[-6px_0_10px_-10px_rgba(15,23,42,0.5)] transition-colors group-hover:bg-slate-50">
+                          <button
+                            type="button"
+                            onClick={(event) => handleToggleActionMenu(event, r)}
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+                              actionMenu?.record.id === r.id
+                                ? "border-blue-200 bg-blue-50 text-blue-600"
+                                : "border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-800"
+                            }`}
+                            title="Ledger actions"
+                            aria-label={`Actions for ${r.customer_name || "ledger record"}`}
+                            aria-haspopup="menu"
+                            aria-expanded={actionMenu?.record.id === r.id}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -777,6 +847,56 @@ export default function OutstandingLedgerPage() {
           )}
         </div>
       </div>
+
+      {actionMenu &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActionMenu(null);
+              }}
+              aria-label="Close actions menu"
+            />
+            <div
+              role="menu"
+              aria-label="Ledger record actions"
+              className="fixed z-50 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+              style={{ top: actionMenu.top, left: actionMenu.left }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handleOpenDetail(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-blue-600 cursor-pointer"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View Ledger
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const record = actionMenu.record;
+                  setActionMenu(null);
+                  handleOpenPayment(record);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Update Payment
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
 
       {/* Update Payment Modal */}
       <LedgerUpdatePaymentModal

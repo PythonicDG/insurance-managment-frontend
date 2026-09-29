@@ -21,8 +21,8 @@ export function formatINR(val: number | string | undefined | null): string {
 export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps) {
   if (loading || !summary) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-5">
+        {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
             className="bg-white rounded-2xl p-3.5 sm:p-6 border border-slate-200/80 shadow-xs animate-pulse"
@@ -38,7 +38,6 @@ export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps
     );
   }
 
-  const hasDiscount = Boolean(summary.total_discount && summary.total_discount > 0);
   const cards = [
     {
       title: "Total Outstanding",
@@ -52,16 +51,12 @@ export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps
       valueColor: "text-slate-900",
       indicatorColor: "bg-blue-100",
     },
-    ...(hasDiscount
-      ? [
-          {
-            title: "Total Discount Given",
-            value: formatINR(summary.total_discount),
-            valueColor: "text-amber-600",
-            indicatorColor: "bg-amber-200",
-          },
-        ]
-      : []),
+    {
+      title: "Total Discount Given",
+      value: formatINR(summary.total_discount),
+      valueColor: "text-amber-600",
+      indicatorColor: "bg-amber-200",
+    },
     {
       title: "Total Amount Received",
       value: formatINR(summary.total_received),
@@ -77,7 +72,7 @@ export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps
   ];
 
   return (
-    <div className={`grid grid-cols-2 ${hasDiscount ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-3 sm:gap-5`}>
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-5">
       {cards.map((card, idx) => (
         <div
           key={idx}
