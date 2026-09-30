@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   X,
   User,
@@ -264,15 +265,13 @@ export function ViewExistingRecordModal({
 
         {/* Modal Actions */}
         <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <a
+          <Link
             href={`/insurance-records?view=${record.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
           >
             <span>Open in Records Table</span>
             <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          </Link>
 
           <button
             type="button"
