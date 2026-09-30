@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Upload,
 } from "lucide-react";
 import { authService } from "@/lib/api";
 
@@ -99,6 +100,12 @@ export function Sidebar({
     //   icon: FileText,
     //   active: pathname.startsWith("/documents"),
     // },
+    {
+      label: "Bulk Upload",
+      href: "/bulk-upload",
+      icon: Upload,
+      active: pathname.startsWith("/bulk-upload"),
+    },
     {
       label: "Outstanding/Ledger",
       href: "/outstanding-ledger",
