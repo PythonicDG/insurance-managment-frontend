@@ -2,6 +2,7 @@
 
 import React from "react";
 import { LedgerSummary } from "@/lib/api";
+import { KpiCard } from "@/components/ui/kpi-card";
 
 interface LedgerKpiCardsProps {
   summary: LedgerSummary | null;
@@ -74,9 +75,11 @@ export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-5">
       {cards.map((card, idx) => (
-        <div
+        <KpiCard
           key={idx}
-          className="bg-white rounded-2xl p-3.5 sm:p-6 border border-slate-200/80 shadow-xs hover:shadow-sm transition-all duration-200 flex flex-col justify-between"
+          title={card.title}
+          value={card.value}
+          className="bg-white rounded-2xl p-3.5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between"
         >
           {/* Top row: Title and Pill Indicator */}
           <div className="flex items-center justify-between gap-1.5">
@@ -88,11 +91,11 @@ export function LedgerKpiCards({ summary, loading = false }: LedgerKpiCardsProps
 
           {/* Bottom row: Value */}
           <div className="mt-3 sm:mt-5">
-            <div className={`text-xl sm:text-[28px] font-bold tracking-tight truncate ${card.valueColor}`}>
+            <div className={`text-xl sm:text-[28px] font-bold tracking-tight truncate group-hover/kpi:whitespace-normal group-hover/kpi:overflow-visible group-hover/kpi:text-clip group-hover/kpi:[overflow-wrap:anywhere] group-focus-visible/kpi:whitespace-normal group-focus-visible/kpi:overflow-visible group-focus-visible/kpi:text-clip group-focus-visible/kpi:[overflow-wrap:anywhere] ${card.valueColor}`}>
               {card.value}
             </div>
           </div>
-        </div>
+        </KpiCard>
       ))}
     </div>
   );

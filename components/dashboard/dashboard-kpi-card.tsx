@@ -3,6 +3,7 @@
 import React from "react";
 import { FilePlus2, CheckCircle2, AlertOctagon, Tag } from "lucide-react";
 import { DashboardKpiMetrics } from "@/lib/api";
+import { KpiCard } from "@/components/ui/kpi-card";
 
 export function formatINR(val: number | string | undefined | null): string {
   const num = typeof val === "number" ? val : parseFloat(String(val || 0));
@@ -122,9 +123,11 @@ export function DashboardKpiCards({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
       {cards.map((card, idx) => (
-        <div
+        <KpiCard
           key={idx}
-          className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/70 shadow-xs hover:shadow-md transition-shadow duration-200 flex flex-col justify-between"
+          title={card.title}
+          value={card.value}
+          className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/70 shadow-xs flex flex-col justify-between"
         >
           <div className="flex items-center justify-between gap-1.5">
             <span className="text-xs sm:text-[13px] font-medium text-slate-500 tracking-tight leading-tight line-clamp-2">
@@ -144,11 +147,11 @@ export function DashboardKpiCards({
           </div>
 
           <div className="mt-3 sm:mt-4">
-            <div className={`text-xl sm:text-[24px] font-bold tracking-tight truncate ${card.valueColor}`}>
+            <div className={`text-xl sm:text-[24px] font-bold tracking-tight truncate group-hover/kpi:whitespace-normal group-hover/kpi:overflow-visible group-hover/kpi:text-clip group-hover/kpi:[overflow-wrap:anywhere] group-focus-visible/kpi:whitespace-normal group-focus-visible/kpi:overflow-visible group-focus-visible/kpi:text-clip group-focus-visible/kpi:[overflow-wrap:anywhere] ${card.valueColor}`}>
               {card.value}
             </div>
           </div>
-        </div>
+        </KpiCard>
       ))}
     </div>
   );
