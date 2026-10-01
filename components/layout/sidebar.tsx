@@ -37,24 +37,29 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [agencyName, setAgencyName] = useState("InsureLedger");
 
   useEffect(() => {
     let active = true;
     let updated = false;
-    const updateLogo = (event: Event) => {
+    const applySettings = (settings: BusinessSettings) => {
+      setLogoUrl(settings.logo_url || settings.logo || null);
+      setAgencyName(settings.business_name?.trim() || "InsureLedger");
+    };
+    const updateBrand = (event: Event) => {
       updated = true;
       const settings = (event as CustomEvent<BusinessSettings>).detail;
-      setLogoUrl(settings.logo_url || settings.logo || null);
+      applySettings(settings);
     };
-    window.addEventListener(BUSINESS_SETTINGS_UPDATED, updateLogo);
+    window.addEventListener(BUSINESS_SETTINGS_UPDATED, updateBrand);
     settingsService.get().then((settings) => {
-      if (active && !updated) setLogoUrl(settings.logo_url || settings.logo || null);
+      if (active && !updated) applySettings(settings);
     }).catch(() => {
       // Keep the default brand mark when settings are unavailable.
     });
     return () => {
       active = false;
-      window.removeEventListener(BUSINESS_SETTINGS_UPDATED, updateLogo);
+      window.removeEventListener(BUSINESS_SETTINGS_UPDATED, updateBrand);
     };
   }, []);
   const [internalCollapsed, setInternalCollapsed] = useState(() => {
@@ -215,13 +220,13 @@ export function Sidebar({
           <Link
             href="/dashboard"
             className="flex items-center gap-3 overflow-hidden group focus:outline-none"
-            title="InsureLedger"
+            title={agencyName}
           >
             <AgencyLogo src={logoUrl} compact={isCollapsed} />
 
             {!isCollapsed && (
               <span className="min-w-0 truncate text-base font-bold text-white tracking-tight">
-                InsureLedger
+                {agencyName}
               </span>
             )}
           </Link>
@@ -231,7 +236,7 @@ export function Sidebar({
             <button
               onClick={toggleCollapse}
               type="button"
-              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800/80 transition-colors cursor-pointer focus:outline-none"
+              className="shrink-0 text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800/80 transition-colors cursor-pointer focus:outline-none"
               title="Minimize sidebar"
               aria-label="Minimize sidebar"
             >
@@ -305,18 +310,19 @@ export function Sidebar({
               <Link
                 href="/dashboard"
                 onClick={onCloseMobile}
-                className="flex items-center gap-2.5 focus:outline-none"
+                className="flex min-w-0 items-center gap-2.5 focus:outline-none"
+                title={agencyName}
               >
                 <AgencyLogo src={logoUrl} />
-                <span className="text-base font-bold text-white tracking-tight">
-                  InsureLedger
+                <span className="min-w-0 truncate text-base font-bold text-white tracking-tight">
+                  {agencyName}
                 </span>
               </Link>
 
               <button
                 type="button"
                 onClick={onCloseMobile}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+                className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
