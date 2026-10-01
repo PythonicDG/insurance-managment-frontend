@@ -18,7 +18,8 @@ import {
   X,
   Upload,
 } from "lucide-react";
-import { authService } from "@/lib/api";
+import { authService, settingsService, BusinessSettings, BUSINESS_SETTINGS_UPDATED } from "@/lib/api";
+import { AgencyLogo } from "@/components/layout/agency-logo";
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -35,6 +36,27 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let updated = false;
+    const updateLogo = (event: Event) => {
+      updated = true;
+      const settings = (event as CustomEvent<BusinessSettings>).detail;
+      setLogoUrl(settings.logo_url || settings.logo || null);
+    };
+    window.addEventListener(BUSINESS_SETTINGS_UPDATED, updateLogo);
+    settingsService.get().then((settings) => {
+      if (active && !updated) setLogoUrl(settings.logo_url || settings.logo || null);
+    }).catch(() => {
+      // Keep the default brand mark when settings are unavailable.
+    });
+    return () => {
+      active = false;
+      window.removeEventListener(BUSINESS_SETTINGS_UPDATED, updateLogo);
+    };
+  }, []);
   const [internalCollapsed, setInternalCollapsed] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -195,12 +217,10 @@ export function Sidebar({
             className="flex items-center gap-3 overflow-hidden group focus:outline-none"
             title="InsureLedger"
           >
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
-              <Shield className="w-4 h-4 fill-white/20 text-white stroke-[2.2]" />
-            </div>
+            <AgencyLogo src={logoUrl} compact={isCollapsed} />
 
             {!isCollapsed && (
-              <span className="text-base font-bold text-white tracking-tight whitespace-nowrap">
+              <span className="min-w-0 truncate text-base font-bold text-white tracking-tight">
                 InsureLedger
               </span>
             )}
@@ -287,9 +307,7 @@ export function Sidebar({
                 onClick={onCloseMobile}
                 className="flex items-center gap-2.5 focus:outline-none"
               >
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-                  <Shield className="w-4 h-4 fill-white/20 text-white stroke-[2.2]" />
-                </div>
+                <AgencyLogo src={logoUrl} />
                 <span className="text-base font-bold text-white tracking-tight">
                   InsureLedger
                 </span>

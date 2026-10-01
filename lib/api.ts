@@ -368,6 +368,14 @@ export const companyService = {
   },
 };
 
+export const BUSINESS_SETTINGS_UPDATED = "insure:business-settings-updated";
+
+function notifyBusinessSettingsUpdated(settings: BusinessSettings) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(BUSINESS_SETTINGS_UPDATED, { detail: settings }));
+  }
+}
+
 export const settingsService = {
   async get(): Promise<BusinessSettings> {
     const response = await apiClient.get<BusinessSettings>("/settings/");
@@ -387,6 +395,7 @@ export const settingsService = {
           }
         : undefined
     );
+    notifyBusinessSettingsUpdated(response.data.data);
     return response.data;
   },
 
@@ -394,6 +403,7 @@ export const settingsService = {
     const response = await apiClient.post<{ message: string; data: BusinessSettings }>(
       "/settings/remove-logo/"
     );
+    notifyBusinessSettingsUpdated(response.data.data);
     return response.data;
   },
 

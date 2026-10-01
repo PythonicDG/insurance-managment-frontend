@@ -136,7 +136,7 @@ export default function SettingsPage() {
       setBusinessPhone(data.phone || "");
       setBusinessEmail(data.email || "");
       setBusinessAddress(data.address || "");
-      setLogoPreview(data.logo_url || null);
+      setLogoPreview(data.logo_url || data.logo || null);
       setIsExportPinSet(Boolean(data.is_export_pin_set));
     } catch {
       showToast("error", "Error loading settings", "Failed to load business settings.");
@@ -328,9 +328,7 @@ export default function SettingsPage() {
 
       const res = await settingsService.update(formData);
       setSettings(res.data);
-      if (res.data.logo_url) {
-        setLogoPreview(res.data.logo_url);
-      }
+      setLogoPreview(res.data.logo_url || res.data.logo || null);
       setLogoFile(null);
       showToast("success", "Settings Saved", "Agency settings updated successfully.");
     } catch {
@@ -799,13 +797,13 @@ export default function SettingsPage() {
 
                 {/* Agency Logo Uploader */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70">
-                  <div className="relative w-20 h-20 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="relative w-40 h-20 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
                     {logoPreview ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src={logoPreview}
                         alt="Agency Logo"
-                        className="w-full h-full object-contain p-1"
+                        className="block w-full h-full object-contain p-3"
                       />
                     ) : (
                       <ImageIcon className="w-8 h-8 text-slate-300" />

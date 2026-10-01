@@ -363,8 +363,8 @@ export function printTransactionStatement({
       vertical-align: top;
     }
     .agency-logo {
-      max-height: 52px;
-      max-width: 160px;
+      max-height: 48px;
+      max-width: 150px;
       object-fit: contain;
       margin-bottom: 6px;
     }
@@ -1009,7 +1009,7 @@ export function printSinglePaymentReceipt({
     }
     .logo {
       max-height: 48px;
-      max-width: 140px;
+      max-width: 150px;
       object-fit: contain;
       margin-bottom: 6px;
     }
@@ -1370,7 +1370,7 @@ export function printVehicleHistorySummary({
 <body>
   <div class="header">
     <div>
-      ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:44px; margin-bottom:4px;" /><br />` : ""}
+      ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:48px; max-width:150px; width:auto; height:auto; object-fit:contain; margin-bottom:4px;" /><br />` : ""}
       <h1 class="agency-name">${escapeHtml(agencyName)}</h1>
       <div class="agency-info">
         ${agencyAddress ? `${escapeHtml(agencyAddress)} &bull; ` : ""}
@@ -1708,7 +1708,7 @@ export function printCustomerInsuranceHistory({
   <table class="header-table">
     <tr>
       <td style="width: 60%;">
-        ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:42px; margin-bottom:4px;" /><br />` : ""}
+        ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:48px; max-width:150px; width:auto; height:auto; object-fit:contain; margin-bottom:4px;" /><br />` : ""}
         <h1 class="agency-name">${escapeHtml(agencyName)}</h1>
         <p class="agency-info">
           ${agencyAddress ? `${escapeHtml(agencyAddress)}<br />` : ""}
@@ -1978,7 +1978,7 @@ export function printSingleInsuranceRecord({
   <table class="header-table">
     <tr>
       <td style="width: 60%;">
-        ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:44px; margin-bottom:4px;" /><br />` : ""}
+        ${agencyLogo ? `<img src="${escapeHtml(agencyLogo)}" alt="Logo" style="max-height:48px; max-width:150px; width:auto; height:auto; object-fit:contain; margin-bottom:4px;" /><br />` : ""}
         <h1 class="agency-name">${escapeHtml(agencyName)}</h1>
         <p class="agency-info">
           ${agencyAddress ? `${escapeHtml(agencyAddress)}<br />` : ""}
