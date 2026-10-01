@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import {
   Search,
   Plus,
-  Calendar as CalendarIcon,
   FileSpreadsheet,
   FileText,
   Printer,
@@ -22,6 +21,7 @@ import {
   Clock,
   MoreVertical,
   CreditCard,
+  MessageCircle,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -31,6 +31,7 @@ import {
   insuranceRecordService,
   paymentService,
   settingsService,
+  whatsAppService,
   InsuranceCompany,
   InsuranceRecordItem,
   PaymentTransaction,
@@ -46,6 +47,8 @@ import {
   MobileFiltersModal,
   FilterCategory,
 } from "@/components/insurance/mobile-filters-modal";
+import { MonthYearFilter } from "@/components/insurance/month-year-filter";
+import { getInsuranceFilterLabel } from "@/lib/insurance-date-filter";
 import { formatLocalDateISO } from "@/lib/date-utils";
 import {
   printHtmlDocument,
@@ -246,8 +249,7 @@ function InsuranceRecordsContent() {
     let count = 0;
     if (selectedCompany && selectedCompany !== "All Companies") count++;
     if (selectedStatus && selectedStatus !== "All Statuses") count++;
-    if (fromDate) count++;
-    if (toDate) count++;
+    if (fromDate || toDate) count++;
     if (searchQuery.trim()) count++;
     return count;
   }, [selectedCompany, selectedStatus, fromDate, toDate, searchQuery]);
@@ -267,6 +269,23 @@ function InsuranceRecordsContent() {
 
   const showToast = (type: ToastType, title: string, message?: string) => {
     setToast({ open: true, type, title, message });
+  };
+
+  const [queueingRenewalId, setQueueingRenewalId] = useState<number | null>(null);
+
+  const handleSendRenewal = async (record: InsuranceRecordItem) => {
+    if (queueingRenewalId !== null || record.payment_status === "PAID") return;
+    setActionMenu(null);
+    setQueueingRenewalId(record.id);
+    try {
+      const result = await whatsAppService.sendRenewal(record.id);
+      showToast("success", "WhatsApp renewal reminder", result.message);
+    } catch (error: unknown) {
+      const detail = error as { response?: { data?: { error?: string } } };
+      showToast("error", "Could not queue reminder", detail.response?.data?.error || "Could not queue reminder.");
+    } finally {
+      setQueueingRenewalId(null);
+    }
   };
 
   // Convert Date DD-MM-YYYY to YYYY-MM-DD for backend
@@ -728,7 +747,7 @@ function InsuranceRecordsContent() {
 
     const rect = event.currentTarget.getBoundingClientRect();
     const menuWidth = 192;
-    const menuHeight = 174;
+    const menuHeight = ["expiring_soon", "expiring_today"].includes(getPolicyLifecycleStatus(record)) ? 222 : 174;
     const spaceBelow = window.innerHeight - rect.bottom;
 
     setActionMenu({
@@ -951,9 +970,7 @@ function InsuranceRecordsContent() {
       filterBadges.push(`Status: ${filters.status}`);
     }
     if (filters.fromDate || filters.toDate) {
-      const fDate = filters.fromDate ? formatDisplayDate(filters.fromDate) : "Any";
-      const tDate = filters.toDate ? formatDisplayDate(filters.toDate) : "Present";
-      filterBadges.push(`Date: ${fDate} to ${tDate}`);
+      filterBadges.push(`Period: ${getInsuranceFilterLabel(filters.fromDate, filters.toDate)}`);
     }
     if (filters.search) {
       filterBadges.push(`Search: "${filters.search}"`);
@@ -1592,7 +1609,7 @@ function InsuranceRecordsContent() {
                 }`}
               >
                 <span className="truncate">
-                  {fromDate || toDate ? "Dates Set" : "Date Range"}
+                  {fromDate || toDate ? getInsuranceFilterLabel(fromDate, toDate) : "Month & Year"}
                 </span>
                 <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
               </button>
@@ -1664,28 +1681,14 @@ function InsuranceRecordsContent() {
                   </span>
                 )}
 
-                {fromDate && (
+                {(fromDate || toDate) && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 shrink-0 font-medium">
-                    <span>From: {fromDate}</span>
+                    <span>{getInsuranceFilterLabel(fromDate, toDate)}</span>
                     <button
                       type="button"
+                      aria-label="Clear month and year filter"
                       onClick={() => {
                         setFromDate("");
-                        setCurrentPage(1);
-                      }}
-                      className="hover:text-rose-600 cursor-pointer p-0.5"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )}
-
-                {toDate && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 shrink-0 font-medium">
-                    <span>To: {toDate}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
                         setToDate("");
                         setCurrentPage(1);
                       }}
@@ -1762,42 +1765,16 @@ function InsuranceRecordsContent() {
           {/* Desktop Filter Bar (Direct Inputs - Visible only on Desktop lg+) */}
           <div className="hidden lg:block bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-4 shadow-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
-              {/* FROM DATE */}
-              <div className="lg:col-span-2">
-                <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  FROM DATE
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => {
-                      setFromDate(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full pl-3 pr-8 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                  />
-                  <CalendarIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* TO DATE */}
-              <div className="lg:col-span-2">
-                <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  TO DATE
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => {
-                      setToDate(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full pl-3 pr-8 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                  />
-                  <CalendarIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+              <div className="lg:col-span-4">
+                <MonthYearFilter
+                  fromDate={fromDate}
+                  toDate={toDate}
+                  onChange={(range) => {
+                    setFromDate(range.fromDate);
+                    setToDate(range.toDate);
+                    setCurrentPage(1);
+                  }}
+                />
               </div>
 
               {/* INSURANCE COMPANY */}
@@ -2286,6 +2263,22 @@ function InsuranceRecordsContent() {
                 )}
                 {(actionMenu.record.balance ?? 0) <= 0 ? "Paid" : "Add Payment"}
               </button>
+              {["expiring_soon", "expiring_today"].includes(getPolicyLifecycleStatus(actionMenu.record)) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={queueingRenewalId !== null || actionMenu.record.payment_status === "PAID"}
+                  onClick={() => void handleSendRenewal(actionMenu.record)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                >
+                  {queueingRenewalId === actionMenu.record.id ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  ) : (
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  {queueingRenewalId === actionMenu.record.id ? "Queueing..." : "Send WhatsApp Renewal"}
+                </button>
+              )}
               <div className="my-1 border-t border-slate-100" />
               <button
                 type="button"

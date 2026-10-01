@@ -13,7 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { InsuranceCompany } from "@/lib/api";
-import { formatLocalDateISO } from "@/lib/date-utils";
+import { MonthYearFilter } from "@/components/insurance/month-year-filter";
 
 export type FilterCategory = "company" | "status" | "date" | "sort" | "search";
 
@@ -89,8 +89,7 @@ function MobileFiltersDialog({
     let count = 0;
     if (draftCompany && draftCompany !== "All Companies") count++;
     if (draftStatus && draftStatus !== "All Statuses") count++;
-    if (draftFromDate) count++;
-    if (draftToDate) count++;
+    if (draftFromDate || draftToDate) count++;
     if (draftSearch.trim()) count++;
     return count;
   }, [draftCompany, draftStatus, draftFromDate, draftToDate, draftSearch]);
@@ -99,34 +98,6 @@ function MobileFiltersDialog({
   const filteredCompanies = companies.filter((c) =>
     c.name.toLowerCase().includes(companyFilterQuery.toLowerCase().trim())
   );
-
-  // Handlers for quick date presets
-  const handleDatePreset = (type: "all" | "today" | "this_month" | "last_30_days" | "this_year") => {
-    const today = new Date();
-    const formatYMD = (d: Date) => formatLocalDateISO(d);
-
-    if (type === "all") {
-      setDraftFromDate("");
-      setDraftToDate("");
-    } else if (type === "today") {
-      const nowStr = formatYMD(today);
-      setDraftFromDate(nowStr);
-      setDraftToDate(nowStr);
-    } else if (type === "this_month") {
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      setDraftFromDate(formatYMD(firstDay));
-      setDraftToDate(formatYMD(today));
-    } else if (type === "last_30_days") {
-      const past30 = new Date(today);
-      past30.setDate(today.getDate() - 30);
-      setDraftFromDate(formatYMD(past30));
-      setDraftToDate(formatYMD(today));
-    } else if (type === "this_year") {
-      const firstDayYear = new Date(today.getFullYear(), 0, 1);
-      setDraftFromDate(formatYMD(firstDayYear));
-      setDraftToDate(formatYMD(today));
-    }
-  };
 
   // Sort options list
   const sortOptions = [
@@ -293,7 +264,7 @@ function MobileFiltersDialog({
                     activeCategory === "date" ? "text-blue-600" : "text-slate-400"
                   }`}
                 />
-                <span className="text-xs truncate">Date</span>
+                <span className="text-xs truncate">Month & Year</span>
               </div>
               {(draftFromDate || draftToDate) && (
                 <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
@@ -533,12 +504,12 @@ function MobileFiltersDialog({
               </div>
             )}
 
-            {/* PANE: DATE RANGE */}
+            {/* PANE: MONTH AND YEAR */}
             {activeCategory === "date" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Date Range Filter
+                    Month & Year
                   </h3>
                   {(draftFromDate || draftToDate) && (
                     <button
@@ -553,78 +524,17 @@ function MobileFiltersDialog({
                     </button>
                   )}
                 </div>
-
-                {/* Quick Presets */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-2">
-                    Quick Presets
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDatePreset("all")}
-                      className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer text-left ${
-                        !draftFromDate && !draftToDate
-                          ? "border-blue-500 bg-blue-50 text-blue-700 font-semibold"
-                          : "border-slate-200 text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      All Time
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDatePreset("today")}
-                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
-                    >
-                      Today
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDatePreset("this_month")}
-                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
-                    >
-                      This Month
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDatePreset("last_30_days")}
-                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
-                    >
-                      Last 30 Days
-                    </button>
-                  </div>
-                </div>
-
-                {/* Custom Pickers */}
-                <div className="space-y-3 pt-1 border-t border-slate-100">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      From Date
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={draftFromDate}
-                        onChange={(e) => setDraftFromDate(e.target.value)}
-                        className="w-full pl-3 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      To Date
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={draftToDate}
-                        onChange={(e) => setDraftToDate(e.target.value)}
-                        className="w-full pl-3 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <MonthYearFilter
+                  fromDate={draftFromDate}
+                  toDate={draftToDate}
+                  onChange={(range) => {
+                    setDraftFromDate(range.fromDate);
+                    setDraftToDate(range.toDate);
+                  }}
+                />
+                <p className="text-xs text-slate-500">
+                  Filter by record entry month. Select All months to view the entire year.
+                </p>
               </div>
             )}
 

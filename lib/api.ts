@@ -1049,16 +1049,24 @@ export interface WhatsAppConfig {
   webhook_verify_token: string;
   auto_send_policy_creation: boolean;
   auto_send_payment_receipt: boolean;
+  renewal_enabled: boolean;
+  renewal_send_time: string;
+  renewal_skip_sundays: boolean;
+  renewal_skip_holidays: boolean;
+  renewal_holidays: string[];
+  renewal_stages: number[];
+  renewal_daily_cap: number;
+  renewal_language: string;
   updated_at: string;
 }
 
 export interface WhatsAppMessageLog {
   id: number;
   recipient_phone: string;
-  message_type: "POLICY_ISSUED" | "PAYMENT_RECEIPT" | "TEST" | "CUSTOM";
+  message_type: "POLICY_ISSUED" | "PAYMENT_RECEIPT" | "TEST" | "CUSTOM" | "RENEWAL_REMINDER";
   template_name: string;
   parameters: Record<string, unknown>;
-  status: "queued" | "sent" | "delivered" | "read" | "failed";
+  status: "queued" | "sent" | "delivered" | "read" | "failed" | "skipped";
   wamid: string;
   error_message: string;
   is_test: boolean;
@@ -1085,6 +1093,14 @@ export interface WhatsAppLogsResponse {
 }
 
 export const whatsAppService = {
+  async sendRenewal(recordId: number | string): Promise<{ success: boolean; message: string; job_id: number; status: string }> {
+    const response = await apiClient.post<{ success: boolean; message: string; job_id: number; status: string }>(`/whatsapp/records/${recordId}/renewal/`);
+    return response.data;
+  },
+  async sendRenewalTest(stage: number): Promise<{ success: boolean; message: string; job_id: number; status: string }> {
+    const response = await apiClient.post<{ success: boolean; message: string; job_id: number; status: string }>("/whatsapp/renewals/send-test/", { stage });
+    return response.data;
+  },
   async getConfig(): Promise<WhatsAppConfig> {
     const response = await apiClient.get<WhatsAppConfig>("/whatsapp/config/");
     return response.data;

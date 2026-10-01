@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, ArrowRight, AlertTriangle, Calendar, CheckCircle2, Clock } from "lucide-react";
 import { DashboardExpiringTodayRecord } from "@/lib/api";
 import { formatINR } from "./dashboard-kpi-card";
+import { SendRenewalButton } from "@/components/insurance/send-renewal-button";
 
 interface ExpiringTodayTableProps {
   records: DashboardExpiringTodayRecord[];
@@ -240,6 +241,7 @@ export function ExpiringTodayTable({
                       {/* Action */}
                       <td className="whitespace-nowrap pl-3 py-3.5 text-right text-xs">
                         <div className="inline-flex items-center gap-1.5">
+                          <SendRenewalButton recordId={rec.id} />
                           <Link
                             href={`/insurance-records?view=${rec.id}&renew=true`}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"

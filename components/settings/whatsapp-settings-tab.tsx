@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import { ToastType } from "@/components/ui/toast";
 import { PaginationControls } from "@/components/ui/pagination-controls";
+import { RenewalReminderSettings, renewalDefaults } from "./renewal-reminder-settings";
 
 interface WhatsAppSettingsTabProps {
   showToast: (type: ToastType, title: string, message?: string) => void;
@@ -37,6 +38,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [renewal, setRenewal] = useState<Partial<WhatsAppConfig>>(renewalDefaults);
 
   // Form states
   const [isEnabled, setIsEnabled] = useState(true);
@@ -78,6 +80,10 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
       setLoadingConfig(true);
       const data = await whatsAppService.getConfig();
       setConfig(data);
+      setRenewal({ renewal_enabled: data.renewal_enabled, renewal_send_time: data.renewal_send_time,
+        renewal_skip_sundays: data.renewal_skip_sundays, renewal_skip_holidays: data.renewal_skip_holidays,
+        renewal_holidays: data.renewal_holidays, renewal_stages: data.renewal_stages,
+        renewal_daily_cap: data.renewal_daily_cap, renewal_language: data.renewal_language });
       setIsEnabled(data.is_enabled);
       setTestMode(data.test_mode);
       setTestPhone(data.test_phone_number || "");
@@ -135,6 +141,8 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
     setSavingConfig(true);
     try {
       const payload: Partial<WhatsAppConfig> = {
+        ...renewal,
+        renewal_holidays: (renewal.renewal_holidays || []).map(d => d.trim()).filter(Boolean),
         is_enabled: isEnabled,
         test_mode: testMode,
         test_phone_number: testPhone.trim(),
@@ -574,6 +582,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
             </div>
 
             {/* Form Actions */}
+            <RenewalReminderSettings value={renewal} onChange={changes => setRenewal(current => ({ ...current, ...changes }))} />
             <div className="pt-3 flex items-center justify-end gap-3">
               <button
                 type="submit"
@@ -841,7 +850,8 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
                         <button
                           type="button"
                           onClick={() => handleResend(log.id)}
-                          disabled={resendingLogId === log.id}
+                          disabled={resendingLogId === log.id || log.message_type === "RENEWAL_REMINDER"}
+                          title={log.message_type === "RENEWAL_REMINDER" ? "Renewal resends must use the policy button and worker safety checks" : "Resend message"}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer disabled:opacity-50"
                         >
                           {resendingLogId === log.id ? (
