@@ -37,7 +37,6 @@ export function NotificationPopover() {
     }
     return [];
   });
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +46,6 @@ export function NotificationPopover() {
       setLoading(true);
       const data: NotificationsResponse = await dashboardService.getNotifications();
       setRecords(data.records || []);
-      setLastFetched(new Date());
     } catch (err) {
       console.warn("Could not fetch notifications:", err);
     } finally {

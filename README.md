@@ -1,12 +1,12 @@
 # InsureLedger frontend
 
-Next.js 16.3.8, React 19 and TypeScript browser application for insurance records, customer management,
-payments, outstanding balances, reports, document uploads, bulk imports and business/WhatsApp settings.
-Requires the separate `insurance-managment-backend` Django API.
+The browser application for InsureLedger: customer and vehicle records, insurance policies,
+renewals, payment collection, outstanding balances, reports, documents, bulk imports and agency settings.
 
-## Getting started
+**Version:** 1.0.0. **Runtime:** Node.js 24, Next.js 16.3.8, React 19.2.8 and TypeScript.
+The API is maintained in the [backend repository](https://github.com/PythonicDG/insurance-managment-backend).
 
-Use Node.js 24 LTS and npm. Run from this repository:
+## Start locally
 
 ```sh
 npm ci
@@ -14,32 +14,35 @@ cp .env.example .env.local
 npm run dev
 ```
 
-On Windows PowerShell use `npm.cmd` and `Copy-Item .env.example .env.local`.
-Set NEXT_PUBLIC_API_URL to the backend origin without `/api`, then open `http://localhost:3000`.
-Start the backend and create an administrator using its installation guide. No default login is provided.
-The public API URL is baked into production builds; rebuild after changing it.
+Open `http://localhost:3000`. The included environment example connects to `http://localhost:8000`.
+Start the backend and sign in with the administrator created during its installation.
+On Windows PowerShell, use `npm.cmd` and `Copy-Item .env.example .env.local`.
 
 ## Documentation
 
-- [Delivery validation and remaining items](docs/VALIDATION.md)
-
-- [Installation and troubleshooting](docs/INSTALLATION.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Production deployment](docs/DEPLOYMENT.md)
-- [Client handover and acceptance](docs/HANDOVER.md)
-- [Security](SECURITY.md), [contributing](CONTRIBUTING.md), [release notes](CHANGELOG.md), [ownership notice](NOTICE.md)
+| Guide | Contents |
+| --- | --- |
+| [Installation](docs/INSTALLATION.md) | Setup, API connection and troubleshooting |
+| [Architecture](docs/ARCHITECTURE.md) | Screens, components and authentication |
+| [Deployment](docs/DEPLOYMENT.md) | Production builds, PM2 and server updates |
+| [Handover](docs/HANDOVER.md) | Repository contents and maintenance responsibilities |
+| [Validation](docs/VALIDATION.md) | Build, type, lint and dependency audit results |
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| npm ci | Install the committed package-lock.json exactly. |
-| npm run dev | Local development server. |
-| npm run lint | ESLint checks; advisory warnings are listed in delivery validation. |
-| npm run typecheck | Generate route types and check TypeScript. |
-| npm run build | Production build. Requires access to Google Fonts during build. |
-| npm start | Serve a completed build; never use dev as the production server. |
+| npm ci | Install the committed dependency lockfile |
+| npm run dev | Start local development |
+| npm run lint | Check source with ESLint |
+| npm run typecheck | Generate route types and run TypeScript |
+| npm audit --audit-level=high | Check dependency advisories |
+| npm run build | Create a production build |
+| npm start | Serve the production build |
 
-GitHub Actions runs lint, typecheck and production build. Automated browser tests are not included;
-use the acceptance checklist against a running backend. Keep package-lock.json committed.
-Environment files, node_modules, .next and TypeScript cache output are excluded from source delivery.
+`NEXT_PUBLIC_API_URL` is the backend origin without `/api`. It is included in the build,
+so a changed API origin requires a new build. The layout uses Google Fonts during compilation.
+
+CI runs the dependency audit, lint, typecheck and build. The Linux PM2 process is defined in
+`deploy/ecosystem.config.js`. See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md)
+and [NOTICE](NOTICE.md).

@@ -1,17 +1,17 @@
-# Security and private reporting
+# Security
 
-Report suspected security issues privately to the client-designated repository/security owner.
-Agree and record that contact before handover. Do not post credentials or customer data in public issues.
-Include affected version, reproduction and impact using synthetic data. Support periods/response times
-are established by the project agreement; none are invented by this repository.
+Send security reports privately to the repository administrators through the existing project contact
+channel. Include the affected commit, reproduction and impact using synthetic data.
+Keep credentials and customer records out of public issues.
 
-Protect env files, database/media backups, SMTP/Meta credentials and client admin accounts.
-Use HTTPS, restricted admin access, host/origin allowlists, backups and proxy login rate limiting.
-The API supports cookie/token authentication; tokens currently have no automatic inactivity expiry.
-The system has no completed multi-tenant/role isolation design. Uploaded documents currently use file URLs;
-an authenticated document delivery policy is required before confidential files are exposed on public hosting.
-No penetration test, security certification or comprehensive dependency audit is claimed.
+NEXT_PUBLIC_API_URL is browser-visible. The frontend must not contain database, SMTP or Meta credentials.
+Serve the application over HTTPS and configure the backend to allow only the intended frontend origins.
 
-If a secret was previously committed, removing it from the current tree is insufficient: rotate it and
-review history/access under the client's incident procedure. Do not rewrite shared history without coordination.
-Review SECURITY.md, deployment docs and acceptance items whenever changing auth, exports or uploads.
+Authentication uses the backend HttpOnly cookie, with legacy tab-scoped token support. A 401 response
+clears browser state and returns to login. Closing a tab is not a substitute for server-side token
+revocation; use explicit logout when ending a session.
+
+The CI dependency audit fails on high/critical advisories. For security updates, change dependencies
+and the lockfile in the repository, verify the build and deploy with npm ci.
+Backend authorization, token lifetime and uploaded-document controls are described in the
+[backend security guide](https://github.com/PythonicDG/insurance-managment-backend/blob/master/SECURITY.md).

@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useMemo, use } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Phone,
@@ -24,7 +23,6 @@ import {
   ExternalLink,
   Shield,
   CreditCard,
-  Building2,
   X,
   Upload,
   Printer,
@@ -66,7 +64,6 @@ type TabType = "history" | "vehicles" | "documents";
 export default function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const resolvedParams = use(params);
   const customerId = resolvedParams.id;
-  const router = useRouter();
 
   // Primary Data State
   const [customer, setCustomer] = useState<CustomerDetailResponse | null>(null);

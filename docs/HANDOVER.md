@@ -1,52 +1,33 @@
-# Client handover and acceptance - frontend
+# Repository handover
 
-## Delivery record (complete with the client)
+Repository: [PythonicDG/insurance-managment-frontend](https://github.com/PythonicDG/insurance-managment-frontend).
+API: [insurance-managment-backend](https://github.com/PythonicDG/insurance-managment-backend).
 
-| Item | Value to record |
-| --- | --- |
-| Client / repository owner | Client legal entity and repository administrator |
-| Repository URL / final commit | Client-owned URL and full commit hash |
-| Paired repository commit | Matching backend/frontend full commit hash |
-| Release / environment | Approved release tag, hosting and actual domains |
-| Technical / support owner | Named contacts and agreed support period |
-| Backup owner / targets | Named owner, retention, recovery time and recovery point |
-| Acceptance | Client approver, date, test results and accepted limitations |
-| Contract / ownership | Signed project agreement reference |
+## Included source
 
-## Source and account transfer
+The repository contains the application screens, reusable components, API client, TypeScript interfaces,
+styles, dependency lockfile, environment example, PM2 configuration and maintenance documentation.
 
-- [ ] Review repository diff and commit the delivery changes; record final commit IDs for both repos.
-- [ ] Transfer/push repositories into client-owned private repositories with history as agreed.
-- [ ] Enable branch protection, required CI/review, least-privilege access and dependency alerts.
-- [ ] Run fresh installs and CI in the client's account; no passing hosted CI is implied by adding workflow files.
-- [ ] Transfer hosting, DNS, TLS, database, SMTP and Meta account control through private channels.
-- [ ] Generate/rotate client secrets and administrator credentials; remove unneeded delivery-party access.
-- [ ] Transfer client data/media only through an agreed encrypted channel, separate from source Git repos.
-- [ ] Supply the user manuals from the workspace deliverables folder if included in the project agreement.
-- [ ] Record ownership terms, support contacts, release commits and all accepted limitations.
+Install with `npm ci`. `package-lock.json` is the dependency source of truth.
+`.env.example` contains a working local API origin; private env files, node_modules and build output
+stay outside Git. The frontend contains no database, SMTP or Meta credentials.
 
-## Functional acceptance (staging with synthetic data)
+## Running and maintaining the application
 
-- [ ] Fresh install, migrations and first admin creation follow the guide.
-- [ ] Login, refresh, password change and logout work; protected routes reject unauthenticated requests.
-- [ ] Add/edit customer and vehicle; create policy and detect duplicates.
-- [ ] Record partial/full payment; verify discount, outstanding balance and printed receipt.
-- [ ] Renew a policy; verify old/new links and lifecycle status.
-- [ ] Verify dashboard/reports/date filters against known values.
-- [ ] Upload/view a document under the agreed storage/access policy.
-- [ ] Download import template, preview valid/invalid rows and import synthetic records.
-- [ ] Set/verify export PIN and verify configured email notifications.
-- [ ] Archive/restore a record and inspect activity audit.
-- [ ] If WhatsApp is in scope, verify approved templates, signature-checked webhook, worker restart,
-  test destination, delivery logs, opt-out behavior and consent process before enabling live sends.
-- [ ] Restore database plus media in isolation and record recovery evidence.
-- [ ] Verify HTTPS, proxy rate limits, production deploy checks and monitoring ownership.
+Use [Installation](INSTALLATION.md) for local setup and [Deployment](DEPLOYMENT.md) for the server.
+The frontend needs a production build before PM2 starts it. Rebuild whenever NEXT_PUBLIC_API_URL changes.
+API contract changes are released with the companion backend.
 
-## Boundaries to resolve or explicitly accept
+[Validation](VALIDATION.md) records the build and dependency checks.
+[Architecture](ARCHITECTURE.md) describes screens and authentication; [Security](../SECURITY.md) covers
+browser and credential handling.
 
-The system has no dedicated health endpoint, automated end-to-end browser suite, configured monitoring,
-automatic auth-token inactivity expiry, tenant isolation or complete business-role authorization model.
-Uploaded documents use file URLs; confidential public hosting needs authenticated delivery controls.
-WhatsApp positive consent is an operating process rather than a structured consent register.
-External service availability, hosting capacity, license review and a production security assessment
-must be validated separately. See [delivery validation](VALIDATION.md) for local test outcomes and advisory lint findings.
+## Release verification
+
+Verify login/logout, refresh and navigation; create a policy and payment; check customer details,
+ledger totals, date filters, reports, import preview, documents and export verification.
+Use synthetic data while checking integration notifications. Backend deployment and backups are
+covered by the backend operating guide.
+
+Keep both repository release commits together. Repository administrators manage access, CI checks
+and reviews. Source ownership and dependency notices are in [NOTICE](../NOTICE.md).

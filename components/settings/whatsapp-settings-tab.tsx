@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   MessageSquare,
   ShieldCheck,
-  AlertTriangle,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -14,7 +13,6 @@ import {
   Check,
   ExternalLink,
   BookOpen,
-  Info,
   Phone,
   KeyRound,
   FileText,

@@ -15,4 +15,4 @@ Business rules and persistent data are owned by Django. Never store confidential
 in public environment variables. This app is not an offline application or a static HTML-only export;
 the documented deployment uses the Next.js server and an available backend API.
 Brand name/logo can be configured in business settings. Keep next-env.d.ts and .next route types generated;
-do not commit them. AGENTS.md/CLAUDE.md contain intentional contributor tooling guidance.
+do not commit them.

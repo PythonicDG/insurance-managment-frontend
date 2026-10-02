@@ -1,17 +1,14 @@
-# Contributing
+# Frontend maintenance
 
-Work in a branch, describe the user-visible change, and open a pull request against the client repository.
-Follow README.md to install the frontend; use the documented runtime and committed dependency definitions.
-Run CI checks locally before review. Include migration/deployment effects, validation and rollback needs.
-Keep each migration committed and do not edit applied migration history. Keep backend API and frontend
-payload changes compatible or release them together. Update environment examples and docs for config changes.
+Work in a branch and describe the behavior changed by the pull request. Run lint, typecheck,
+the dependency audit and production build before review. Check changed screens against the backend.
 
-Never commit credentials, client records, uploaded documents, database backups or generated artifacts.
-Use synthetic data in bug reports. Do not switch off checks to make a change pass.
-The React Compiler is not enabled; compiler-readiness diagnostics are advisory, while normal hook
-correctness and TypeScript checks remain enforced. Avoid adding new advisory warnings.
+Commit package.json and package-lock.json together for dependency changes. Install with npm ci;
+do not generate a different lockfile on the production server. Keep Next.js and eslint-config-next
+on matching versions. Release API contract changes with the backend update.
 
-Client repository administrators should configure protected default branches, required CI and review,
-least-privilege access, dependency/security alerts and a release owner. These account-level settings are
-not activated by files in this repository. Tag a release only after both repositories pass acceptance;
-include exact commit IDs and deployment environment in the release record.
+React Compiler is disabled. Its readiness diagnostics remain advisory; hook ordering, mutation
+and TypeScript checks are enforced. Keep unrelated refactoring out of fixes and document new configuration.
+
+Use synthetic data in issue reports. Keep environment files, dependency folders and generated builds
+outside Git. Public environment values are browser-visible and must not contain credentials.

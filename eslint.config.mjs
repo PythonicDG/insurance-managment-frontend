@@ -6,6 +6,12 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    // PM2 ecosystem files use CommonJS.
+    files: ["deploy/**/*.config.js"],
+    languageOptions: { sourceType: "commonjs" },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     // React Compiler is not enabled in next.config.ts. Keep its migration
     // diagnostics visible as advisories; hook ordering and mutation stay errors.
     rules: {

@@ -3,11 +3,9 @@
 import React from "react";
 import {
   AlertTriangle,
-  CheckCircle2,
   Pencil,
   RefreshCw,
   Eye,
-  Car,
   User,
   Calendar,
   Building2,
@@ -36,15 +34,6 @@ export function VehicleActivePolicyAlert({
 
   const formatDate = (dateStr?: string) => {
     return formatDisplayDate(dateStr);
-  };
-
-  const formatCurrency = (val?: number | string) => {
-    if (val === undefined || val === null) return "₹0.00";
-    const num = typeof val === "number" ? val : parseFloat(String(val)) || 0;
-    return `₹${num.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
   };
 
   if (vehicleCheck.has_scheduled_renewal && vehicleCheck.scheduled_record) {

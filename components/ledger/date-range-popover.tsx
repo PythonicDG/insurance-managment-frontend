@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Calendar as CalendarIcon, ChevronDown, Check, X } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown } from "lucide-react";
 
 interface DateRangePopoverProps {
   fromDate: string;

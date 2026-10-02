@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Plus, ArrowRight, AlertTriangle, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { Plus, ArrowRight, CheckCircle2, Clock } from "lucide-react";
 import { DashboardExpiringTodayRecord } from "@/lib/api";
 import { formatINR } from "./dashboard-kpi-card";
 import { SendRenewalButton } from "@/components/insurance/send-renewal-button";
@@ -15,7 +15,6 @@ interface ExpiringTodayTableProps {
 
 export function ExpiringTodayTable({
   records,
-  onAddNewRecord,
   loading = false,
 }: ExpiringTodayTableProps) {
   if (loading) {

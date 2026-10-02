@@ -5,8 +5,6 @@ import {
   X,
   User,
   Car,
-  Calendar,
-  Building2,
   Receipt,
   PlusCircle,
   Loader2,

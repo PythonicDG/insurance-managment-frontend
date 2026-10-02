@@ -34,7 +34,6 @@ import {
   whatsAppService,
   InsuranceCompany,
   InsuranceRecordItem,
-  PaymentTransaction,
 } from "@/lib/api";
 import { RecordPaymentModal } from "@/components/insurance/record-payment-modal";
 import { RenewPolicyModal } from "@/components/insurance/renew-policy-modal";
@@ -120,7 +119,6 @@ function InsuranceRecordsContent() {
   // Summary Metrics State (across entire database)
   const [activePoliciesCount, setActivePoliciesCount] = useState(0);
   const [expiringSoonCount, setExpiringSoonCount] = useState(0);
-  const [outstandingCount, setOutstandingCount] = useState(0);
 
   // Filters state (defaults are empty so backend data isn't restricted)
   const [fromDate, setFromDate] = useState("");
@@ -316,15 +314,12 @@ function InsuranceRecordsContent() {
         const s = getPolicyLifecycleStatus(r);
         return s === "expiring_soon" || s === "expiring_today";
       }).length;
-      const outstanding = augmented.filter((r) => (r.balance ?? 0) > 0).length;
 
       setActivePoliciesCount(active);
       setExpiringSoonCount(expiringSoon);
-      setOutstandingCount(outstanding);
     } catch {
       setActivePoliciesCount(0);
       setExpiringSoonCount(0);
-      setOutstandingCount(0);
     }
   }, []);
 
@@ -1431,83 +1426,7 @@ function InsuranceRecordsContent() {
       ) : (
         <div className="space-y-4">
           {/* Top Row: Subtitle + Dynamic Backend Counters */}
-          {/* <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
-            <p className="text-xs sm:text-sm text-slate-500">
-              Manage, search and track vehicle policy premium payment statuses
-            </p>
 
-            <div className="flex items-center gap-2.5 text-xs font-semibold flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedStatus(selectedStatus === "Active" ? "All Statuses" : "Active");
-                  setCurrentPage(1);
-                }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                  selectedStatus === "Active"
-                    ? "bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-                title="Filter active policies"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                <span>
-                  Active:{" "}
-                  <span className="font-bold text-slate-900">
-                    {activePoliciesCount.toLocaleString("en-IN")}
-                  </span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedStatus(
-                    selectedStatus === "Expiring Soon" ? "All Statuses" : "Expiring Soon"
-                  );
-                  setCurrentPage(1);
-                }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                  selectedStatus === "Expiring Soon"
-                    ? "bg-amber-100 border-amber-400 text-amber-900 shadow-2xs font-bold"
-                    : expiringSoonCount > 0
-                    ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-                title="Filter policies expiring in the next 10 days"
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
-                <span>
-                  Expiring Soon (10D):{" "}
-                  <span className="font-bold text-amber-900">
-                    {expiringSoonCount.toLocaleString("en-IN")}
-                  </span>
-                </span>
-              </button>
-
-              <div className="inline-flex items-center gap-1.5 text-slate-700 px-2 py-1">
-                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                <span>
-                  Outstanding:{" "}
-                  <span className="font-bold text-slate-900">
-                    {outstandingCount.toLocaleString("en-IN")}
-                  </span>
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  fetchRecords(currentPage);
-                  fetchSummaryCounts();
-                }}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer hover:bg-slate-100"
-                title="Refresh records"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-              </button>
-            </div>
-          </div> */}
 
           {/* Mobile Filter & Search Section (Flipkart / Amazon Style) */}
           <div className="lg:hidden space-y-2.5">
@@ -1583,20 +1502,7 @@ function InsuranceRecordsContent() {
               </button>
 
               {/* Button 3: Status Filter Button */}
-              {/* <button
-                type="button"
-                onClick={() => openMobileFilters("status")}
-                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all cursor-pointer shadow-2xs ${
-                  selectedStatus !== "All Statuses"
-                    ? "bg-blue-50 border border-blue-400 text-blue-700 font-semibold"
-                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <span className="truncate">
-                  {selectedStatus !== "All Statuses" ? selectedStatus : "Status"}
-                </span>
-                <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
-              </button> */}
+
 
               {/* Button 4: Date Filter Button */}
               <button

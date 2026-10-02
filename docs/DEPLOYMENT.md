@@ -1,39 +1,56 @@
-# Production deployment
+# Linux deployment with PM2
 
-Use a Node.js 24 LTS host or a Next.js-compatible managed platform. Start from the approved release
-commit and committed package-lock.json. Build and runtime must use the agreed Node major.
+The server checkout is `/home/insurance/insurance-managment-frontend`. Use Node.js 24 and the committed
+dependency lockfile. PM2 starts the production Next.js server on `127.0.0.1:3000` behind the HTTPS proxy.
 
-1. Configure NEXT_PUBLIC_API_URL=https://api.example.com in the BUILD environment. This is a public
-   origin without /api. Never put SMTP, database or Meta credentials in this repository's env.
-2. Install/build:
+## Environment and build
+
+Keep the server's private `.env.local`. NEXT_PUBLIC_API_URL is the backend origin without `/api`.
+The value is embedded during compilation; changing it requires a rebuild. The backend must allow
+the frontend's exact HTTPS origin. Same-site app/API domains use the backend's Lax, host-only auth cookie.
 
 ```sh
+cd /home/insurance/insurance-managment-frontend
+git pull --ff-only
 npm ci
+npm audit --audit-level=high
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-The layout downloads Google Fonts through next/font/google during build; permit outbound font access.
-Builds do not require a running API. Keep CI/build caches separate from release source.
-3. Start behind an HTTPS reverse proxy, using a process supervisor and this repository as working directory:
+The build downloads Geist fonts from Google Fonts. Keep the backend URL available in the build
+environment. Use `npm ci` during deployment so server installations retain the repository lockfile.
+
+## PM2 process
+
+`deploy/ecosystem.config.js` resolves the checkout and installed Next.js CLI automatically.
+It defines the `insurance-frontend` process, with file watching disabled and automatic crash restart.
+
+First start:
 
 ```sh
-npm start -- --hostname 127.0.0.1 --port 3000
+pm2 start deploy/ecosystem.config.js
+pm2 save
 ```
 
-Use `deploy/insureledger-frontend.service.example` as a starting point for systemd.
-Keep the Node port private. Route app.example.com to it and terminate TLS at the proxy.
-On a managed platform set the build command to `npm run build`, supply the public API URL before building,
-and use its supported Next.js runtime. A static export has not been configured or validated.
-4. Set backend CORS_ALLOWED_ORIGINS to https://app.example.com. Use same-site HTTPS app/api domains
-with backend AUTH_COOKIE_SAMESITE=Lax and a host-only cookie unless a different topology is tested.
-5. Verify login, refresh, navigation, reports, uploads, export PIN and logout with a real browser.
-   Keep backend/frontend commit IDs paired in the release record.
+After a successful production build:
 
-## Release and rollback
+```sh
+pm2 restart deploy/ecosystem.config.js --update-env
+pm2 logs insurance-frontend --lines 50
+```
 
-The frontend has no database migrations. Rebuild when the public API URL changes.
-Keep the previous build and matched backend release. Roll back by deploying that artifact, restart the
-service and smoke test. Confirm API compatibility before independently rolling back either repository.
-Hosting, DNS, certificates, monitoring and production credentials are client configuration tasks.
+On an existing PM2 installation, run `pm2 list` before adopting the configuration. Keep one frontend
+process on port 3000; reuse the current process or migrate its name during a maintenance window.
+Run PM2 commands as the account that owns the processes. Use `pm2 startup` and its printed command,
+then `pm2 save`, to restore processes after a server reboot.
+
+The HTTPS proxy forwards to the loopback port. Verify login, refresh, navigation, reports, uploads,
+export verification and logout after restarting.
+
+## Rollback
+
+Retain the previous frontend build and its matching backend commit. Deploy that build, restart the
+frontend process and verify the main screens. Rebuild a previous source release if its API origin
+differs from the current environment. Check API compatibility before rolling back only one repository.

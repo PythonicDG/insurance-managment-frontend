@@ -101,7 +101,7 @@ function InsuranceRecordFormDialog({
     () => recordToEdit?.vehicle?.vehicle_type || "SUV (Mahindra XUV700)"
   );
 
-  const [entryDate, setEntryDate] = useState(() => {
+  const [entryDate] = useState(() => {
     return recordToEdit?.entry_date || getTodayDateString();
   });
 
@@ -212,6 +212,8 @@ function InsuranceRecordFormDialog({
   };
 
   // Debounced vehicle check
+  const editingRecordId = recordToEdit?.id;
+  const isEditingRecord = Boolean(recordToEdit);
   useEffect(() => {
     const normalized = normalizeVehicleNumber(vehicleNumber);
     let active = true;
@@ -240,15 +242,15 @@ function InsuranceRecordFormDialog({
       try {
         const res = await insuranceRecordService.checkVehicle(
           normalized,
-          recordToEdit?.id
+          editingRecordId
         );
         if (!active) return;
         setVehicleCheck(res);
-        if (res.has_active_policy && res.active_record && !recordToEdit) {
+        if (res.has_active_policy && res.active_record && !isEditingRecord) {
           setVehicleError(
             `Active policy #${res.active_record.policy_number} already exists for vehicle "${normalized}".`
           );
-        } else if (res.has_scheduled_renewal && res.scheduled_record && !recordToEdit) {
+        } else if (res.has_scheduled_renewal && res.scheduled_record && !isEditingRecord) {
           setVehicleError(
             `Renewal policy #${res.scheduled_record.policy_number} is already scheduled for vehicle "${normalized}".`
           );
@@ -281,7 +283,7 @@ function InsuranceRecordFormDialog({
       active = false;
       clearTimeout(timer);
     };
-  }, [vehicleNumber, recordToEdit?.id, vehicleType, customerPhone, customerName, customerAltPhone]);
+  }, [vehicleNumber, editingRecordId, isEditingRecord, vehicleType, customerPhone, customerName, customerAltPhone]);
 
   const handleVehicleNumberBlur = async () => {
     const normalized = normalizeVehicleNumber(vehicleNumber);

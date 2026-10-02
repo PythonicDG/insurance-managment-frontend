@@ -14,7 +14,6 @@ interface RecentRecordsTableProps {
 
 export function RecentRecordsTable({
   records,
-  onAddNewRecord,
   loading = false,
 }: RecentRecordsTableProps) {
   if (loading) {

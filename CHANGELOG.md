@@ -1,17 +1,17 @@
 # Changelog
 
-## Unreleased - dependency security fixes (2026-10-02)
+## 1.0.0 - 2026-10-02
 
-- Updated Next.js and eslint-config-next from 16.3.5 to 16.3.8 to address
+- Added a PM2 definition for the production Next.js server.
+- Documented installation, API configuration, deployment and maintenance.
+- Added CI for audit, lint, TypeScript and production builds.
+- Removed unused assets, import bindings and obsolete commented-out UI.
+- Corrected vehicle-lookup effect dependencies.
+- Fixed conditional hook ordering in the ledger payment form and typed API error handling.
+
+### Security
+
+- Updated Next.js and eslint-config-next to 16.3.8 for
   [GHSA-vcvr-r3jv-pc5j](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j).
-- Updated locked brace-expansion versions to 1.1.21 and 5.0.12 using compatible npm audit fixes.
-- Added a CI audit gate for high/critical dependency advisories.
-- See docs/VALIDATION.md for verification; deploy with npm ci and rebuild before restarting the service.
-
-## Unreleased - client handover preparation (2026-10-02)
-
-- Added frontend installation, architecture, deployment and acceptance documentation.
-- Added version-controlled environment examples without client credentials or deployment-specific domains.
-- Added CI checks, contributor guidance, security reporting and contractual ownership notice.
-- Excluded generated/local artifacts and preserved required source, lockfiles and migrations.
-- See delivery validation for actual checks and outstanding acceptance items; this is not a release tag.
+- Updated locked brace-expansion versions to 1.1.21 and 5.0.12.
+- Added a high/critical dependency-audit gate. The patched lockfile reported zero known advisories.

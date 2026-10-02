@@ -33,7 +33,6 @@ import { RenewPolicyModal } from "@/components/insurance/renew-policy-modal";
 import { ViewExistingRecordModal } from "@/components/insurance/view-existing-record-modal";
 import { CustomerLookupSection } from "@/components/insurance/customer-lookup-section";
 import {
-  formatLocalDateISO,
   getTodayDateString,
   getNextYearDateString,
 } from "@/lib/date-utils";
@@ -348,7 +347,7 @@ function AddInsuranceRecordForm() {
       active = false;
       clearTimeout(timer);
     };
-  }, [vehicleNumber, isEditMode, editId, vehicleType, customerPhone, customerName]);
+  }, [vehicleNumber, isEditMode, editId, vehicleType, customerPhone, customerName, customerAltPhone]);
 
   const handleVehicleNumberBlur = async () => {
     const normalized = normalizeVehicleNumber(vehicleNumber);

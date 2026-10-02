@@ -28,7 +28,6 @@ interface HeaderProps {
 export function Header({
   title = "Dashboard",
   subtitle,
-  onSearch,
   showAddRecord = true,
   onAddRecord,
 }: HeaderProps) {
