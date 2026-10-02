@@ -1,5 +1,26 @@
 # Delivery validation - 2026-10-02
 
+## Dependency security update (2026-10-02)
+
+After the server audit identified high/critical advisories, Next.js and eslint-config-next
+were pinned to 16.3.8. Locked brace-expansion versions were updated to 1.1.21 and 5.0.12
+with compatible npm audit fixes. No force upgrade was used.
+
+- npm ci passed with the updated lockfile.
+- npm audit reported 0 vulnerabilities across all severities at verification time.
+- Lint passed with 0 errors and the same 53 existing warnings.
+- Route type generation / TypeScript passed.
+- Next.js 16.3.8 production build passed, generating 14 pages.
+- CI now runs npm audit --audit-level=high before lint/typecheck/build.
+
+See the [Next.js security advisory](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j).
+No next/og or ImageResponse usage was found in application source. The dependency was patched regardless.
+These changes are local; commit/push them, then deploy with git pull, npm ci and npm run build
+before restarting the existing frontend service. Audit results reflect the database at check time;
+they do not certify the application or rule out future advisories.
+
+## Original handover verification
+
 Environment: Windows, Python 3.11.0 and Node.js 24.19.0. Results are local verification,
 not a claim that the client's production deployment or hosted CI has been accepted.
 

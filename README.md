@@ -1,6 +1,6 @@
 # InsureLedger frontend
 
-Next.js 16.3.5, React 19 and TypeScript browser application for insurance records, customer management,
+Next.js 16.3.8, React 19 and TypeScript browser application for insurance records, customer management,
 payments, outstanding balances, reports, document uploads, bulk imports and business/WhatsApp settings.
 Requires the separate `insurance-managment-backend` Django API.
 
