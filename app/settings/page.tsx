@@ -34,6 +34,7 @@ import {
   UserProfile,
 } from "@/lib/api";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
+import { VerifiedAccountChangeModal, ChangePurpose } from "@/components/modals/verified-account-change-modal";
 import { SetExportPinModal } from "@/components/modals/set-export-pin-modal";
 import { WhatsAppSettingsTab } from "@/components/settings/whatsapp-settings-tab";
 import { PaginationControls } from "@/components/ui/pagination-controls";
@@ -71,6 +72,8 @@ export default function SettingsPage() {
   const [businessName, setBusinessName] = useState("");
   const [businessPhone, setBusinessPhone] = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
+  const [savedBusinessEmail, setSavedBusinessEmail] = useState("");
+  const [contactChange, setContactChange] = useState<ChangePurpose | null>(null);
   const [businessAddress, setBusinessAddress] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -81,7 +84,7 @@ export default function SettingsPage() {
   const [pinModalMode, setPinModalMode] = useState<"set" | "remove">("set");
 
   // Account state with lazy initialization
-  const [currentUser] = useState<UserProfile | null>(() => {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     if (typeof window !== "undefined") {
       return authService.getCurrentUser();
     }
@@ -137,6 +140,7 @@ export default function SettingsPage() {
       setBusinessName(data.business_name || "");
       setBusinessPhone(data.phone || "");
       setBusinessEmail(data.email || "");
+      setSavedBusinessEmail(data.email || "");
       setBusinessAddress(data.address || "");
       setLogoPreview(data.logo_url || data.logo || null);
       setIsExportPinSet(Boolean(data.is_export_pin_set));
@@ -150,6 +154,13 @@ export default function SettingsPage() {
   useEffect(() => {
     let active = true;
     const init = async () => {
+      try {
+        const profile = await authService.getProfile();
+        if (active) {
+          setCurrentUser(profile);
+          sessionStorage.setItem("insure_user", JSON.stringify(profile));
+        }
+      } catch { /* The API interceptor handles expired sessions. */ }
       await fetchCompanies();
       if (active) {
         await fetchSettings();
@@ -320,8 +331,10 @@ export default function SettingsPage() {
     try {
       const formData = new FormData();
       formData.append("business_name", businessName.trim());
-      formData.append("phone", businessPhone.trim());
-      formData.append("email", businessEmail.trim());
+      if (!savedBusinessEmail && !currentUser?.email) {
+        formData.append("phone", businessPhone.trim());
+        formData.append("email", businessEmail.trim());
+      }
       formData.append("address", businessAddress.trim());
 
       if (logoFile) {
@@ -330,6 +343,9 @@ export default function SettingsPage() {
 
       const res = await settingsService.update(formData);
       setSettings(res.data);
+      setSavedBusinessEmail(res.data.email || "");
+      setBusinessEmail(res.data.email || "");
+      setBusinessPhone(res.data.phone || "");
       setLogoPreview(res.data.logo_url || res.data.logo || null);
       setLogoFile(null);
       showToast("success", "Settings Saved", "Agency settings updated successfully.");
@@ -869,10 +885,12 @@ export default function SettingsPage() {
                     <input
                       type="text"
                       value={businessPhone}
+                      readOnly={Boolean(savedBusinessEmail || currentUser?.email)}
                       onChange={(e) => setBusinessPhone(e.target.value)}
                       placeholder="e.g. +91 98765 43210"
                       className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     />
+                    <button type="button" onClick={() => setContactChange("phone")} className="mt-2 text-xs font-semibold text-blue-600">Change phone with email OTP</button>
                   </div>
 
                   <div>
@@ -902,10 +920,12 @@ export default function SettingsPage() {
                     <input
                       type="email"
                       value={businessEmail}
+                      readOnly={Boolean(savedBusinessEmail || currentUser?.email)}
                       onChange={(e) => setBusinessEmail(e.target.value)}
                       placeholder="e.g. info@agency.com"
                       className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     />
+                    <button type="button" onClick={() => setContactChange("email")} className="mt-2 text-xs font-semibold text-blue-600">Change agency email with OTP</button>
                     <p className="text-[11px] text-slate-500 mt-1.5 flex items-start gap-1">
                       <span className="text-amber-500 font-bold shrink-0">🔔</span>
                       <span>
@@ -994,7 +1014,7 @@ export default function SettingsPage() {
                   <span>Account Password</span>
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Change your login password to maintain high account security.
+                  Verify an email OTP before entering your new password.
                 </p>
               </div>
 
@@ -1005,6 +1025,21 @@ export default function SettingsPage() {
               >
                 <span>Change Password</span>
               </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4">
+              <h4 className="text-sm font-bold text-slate-900">Email &amp; Phone</h4>
+              <p className="text-xs text-slate-500">Verify an OTP sent to the current saved email before changing these details.</p>
+              {([
+                ["account_email", "Account Email", currentUser?.email || "No email set"],
+                ["email", "Agency Email", savedBusinessEmail || "No email set"],
+                ["phone", "Agency Phone", businessPhone || "No phone set"],
+              ] as const).map(([purpose, label, value]) => (
+                <div key={purpose} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                  <div className="min-w-0"><p className="text-sm font-semibold text-slate-800">{label}</p><p className="text-xs text-slate-500 break-all">{value}</p></div>
+                  <button type="button" disabled={loadingSettings} onClick={() => setContactChange(purpose)} className="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl disabled:opacity-50">Change {label}</button>
+                </div>
+              ))}
             </div>
 
             {/* Bulk Export Security PIN Card */}
@@ -1317,6 +1352,22 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {contactChange && (
+        <VerifiedAccountChangeModal
+          key={contactChange}
+          purpose={contactChange}
+          onClose={() => setContactChange(null)}
+          onSuccess={(message) => {
+            showToast("success", "Contact Updated", message);
+            void fetchSettings();
+            void authService.getProfile().then(profile => {
+              setCurrentUser(profile);
+              sessionStorage.setItem("insure_user", JSON.stringify(profile));
+            }).catch(() => showToast("error", "Refresh needed", "Contact saved. Reload to see your updated account details."));
+          }}
+        />
       )}
 
       {/* ==================== CHANGE PASSWORD MODAL ==================== */}

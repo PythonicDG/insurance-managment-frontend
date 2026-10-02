@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, Loader2, Info } from "lucide-react";
 import axios from "axios";
@@ -273,16 +272,6 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
-            </div>
-
-            {/* Forgot Password */}
-            <div className="flex items-center justify-end pt-0.5">
-              <Link
-                href="/change-password"
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 transition"
-              >
-                Forgot password?
-              </Link>
             </div>
 
             {/* Submit Button */}

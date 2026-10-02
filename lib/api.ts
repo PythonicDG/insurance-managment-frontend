@@ -503,8 +503,9 @@ export const authService = {
   },
 
   async changePassword(payload: {
-    old_password: string;
+    verification_token: string;
     new_password: string;
+    confirm_password: string;
   }): Promise<{ message: string }> {
     const response = await apiClient.post<{ message: string }>(
       "/auth/change-password/",
@@ -520,6 +521,18 @@ export const authService = {
     } catch {
       return false;
     }
+  },
+
+  async requestChangeOtp(purpose: "password" | "email" | "phone" | "account_email"): Promise<{ message: string; recipient: string }> {
+    return (await apiClient.post("/auth/change/request-otp/", { purpose })).data;
+  },
+
+  async verifyChangeOtp(purpose: "password" | "email" | "phone" | "account_email", otp: string): Promise<{ verification_token: string }> {
+    return (await apiClient.post("/auth/change/verify-otp/", { purpose, otp })).data;
+  },
+
+  async changeContact(payload: { purpose: "email" | "phone" | "account_email"; verification_token: string; new_value: string }): Promise<{ message: string }> {
+    return (await apiClient.post("/auth/change/contact/", payload)).data;
   },
 
   async logout(): Promise<void> {
@@ -1107,6 +1120,7 @@ export const whatsAppService = {
     const response = await apiClient.post<{ success: boolean; message: string; job_id: number; status: string }>(`/whatsapp/records/${recordId}/renewal/`);
     return response.data;
   },
+
   async sendRenewalTest(stage: number): Promise<{ success: boolean; message: string; job_id: number; status: string }> {
     const response = await apiClient.post<{ success: boolean; message: string; job_id: number; status: string }>("/whatsapp/renewals/send-test/", { stage });
     return response.data;
