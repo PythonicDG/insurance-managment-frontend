@@ -1,5 +1,7 @@
 "use client";
 
+import { apiErrorMessage } from "@/lib/api-error";
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Building2,
@@ -351,11 +353,11 @@ export default function SettingsPage() {
       } else {
         showToast("error", "Email Failed", res.message || "Could not send test email.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast(
         "error",
         "SMTP Error",
-        err?.response?.data?.message || err?.message || "Failed to send test email. Check .env configuration."
+        apiErrorMessage(err, "Failed to send test email. Check .env configuration.")
       );
     } finally {
       setTestingEmail(false);

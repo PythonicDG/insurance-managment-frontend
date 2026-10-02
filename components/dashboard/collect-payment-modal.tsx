@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Search,
@@ -34,20 +34,8 @@ export function CollectPaymentModal({
   const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto focus search input when opened
-  useEffect(() => {
-    if (isOpen) {
-      setQuery("");
-      setHasSearched(false);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-      loadInitialRecords();
-    }
-  }, [isOpen]);
-
   // Load initial suggestions (recent records with pending or active status)
-  const loadInitialRecords = async () => {
+  const loadInitialRecords = useCallback(async () => {
     setLoading(true);
     try {
       const res = await insuranceRecordService.getAll({ page_size: 6 });
@@ -58,7 +46,19 @@ export function CollectPaymentModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Auto focus search input when opened
+  useEffect(() => {
+    if (isOpen) {
+      setQuery("");
+      setHasSearched(false);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      loadInitialRecords();
+    }
+  }, [isOpen, loadInitialRecords]);
 
   // Debounced search when query changes
   useEffect(() => {
@@ -89,7 +89,7 @@ export function CollectPaymentModal({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, isOpen]);
+  }, [query, isOpen, loadInitialRecords]);
 
   if (!isOpen) return null;
 

@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# InsureLedger frontend
 
-## Getting Started
+Next.js 16.3.5, React 19 and TypeScript browser application for insurance records, customer management,
+payments, outstanding balances, reports, document uploads, bulk imports and business/WhatsApp settings.
+Requires the separate `insurance-managment-backend` Django API.
 
-First, run the development server:
+## Getting started
 
-```bash
+Use Node.js 24 LTS and npm. Run from this repository:
+
+```sh
+npm ci
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+On Windows PowerShell use `npm.cmd` and `Copy-Item .env.example .env.local`.
+Set NEXT_PUBLIC_API_URL to the backend origin without `/api`, then open `http://localhost:3000`.
+Start the backend and create an administrator using its installation guide. No default login is provided.
+The public API URL is baked into production builds; rebuild after changing it.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Documentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [Delivery validation and remaining items](docs/VALIDATION.md)
 
-## Learn More
+- [Installation and troubleshooting](docs/INSTALLATION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Production deployment](docs/DEPLOYMENT.md)
+- [Client handover and acceptance](docs/HANDOVER.md)
+- [Security](SECURITY.md), [contributing](CONTRIBUTING.md), [release notes](CHANGELOG.md), [ownership notice](NOTICE.md)
 
-To learn more about Next.js, take a look at the following resources:
+## Commands
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | Purpose |
+| --- | --- |
+| npm ci | Install the committed package-lock.json exactly. |
+| npm run dev | Local development server. |
+| npm run lint | ESLint checks; advisory warnings are listed in delivery validation. |
+| npm run typecheck | Generate route types and check TypeScript. |
+| npm run build | Production build. Requires access to Google Fonts during build. |
+| npm start | Serve a completed build; never use dev as the production server. |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+GitHub Actions runs lint, typecheck and production build. Automated browser tests are not included;
+use the acceptance checklist against a running backend. Keep package-lock.json committed.
+Environment files, node_modules, .next and TypeScript cache output are excluded from source delivery.

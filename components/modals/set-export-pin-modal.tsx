@@ -1,5 +1,7 @@
 "use client";
 
+import { apiErrorMessage } from "@/lib/api-error";
+
 import React, { useState, useEffect } from "react";
 import {
   ShieldCheck,
@@ -80,9 +82,9 @@ export function SetExportPinModal({
       } else {
         setErrorMessage(res.message || "Could not send verification code.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMessage(
-        err?.response?.data?.message || err?.message || "Failed to send verification code."
+        apiErrorMessage(err, "Failed to send verification code.")
       );
     } finally {
       setLoading(false);
@@ -100,9 +102,9 @@ export function SetExportPinModal({
       } else {
         setErrorMessage(res.message || "Could not resend code.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMessage(
-        err?.response?.data?.message || err?.message || "Failed to resend code."
+        apiErrorMessage(err, "Failed to resend code.")
       );
     } finally {
       setResending(false);
@@ -128,9 +130,9 @@ export function SetExportPinModal({
         } else {
           setErrorMessage(res.message || "Failed to remove PIN.");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setErrorMessage(
-          err?.response?.data?.message || err?.message || "Failed to remove PIN."
+          apiErrorMessage(err, "Failed to remove PIN.")
         );
       } finally {
         setLoading(false);
@@ -162,9 +164,9 @@ export function SetExportPinModal({
       } else {
         setErrorMessage(res.message || "Failed to update PIN.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrorMessage(
-        err?.response?.data?.message || err?.message || "Failed to update PIN."
+        apiErrorMessage(err, "Failed to update PIN.")
       );
     } finally {
       setLoading(false);

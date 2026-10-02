@@ -411,7 +411,7 @@ export const settingsService = {
     action_type: "export_csv" | "save_pdf" | "print_all";
     source_module: "insurance_records" | "outstanding_ledger";
     record_count: number;
-    filters?: Record<string, any>;
+    filters?: Record<string, unknown>;
   }): Promise<{ success: boolean; message: string; recipient?: string }> {
     try {
       const response = await apiClient.post<{
@@ -420,8 +420,8 @@ export const settingsService = {
         recipient?: string;
       }>("/settings/notify-export/", payload);
       return response.data;
-    } catch (err: any) {
-      console.warn("Export notification dispatch failed:", err?.message || err);
+    } catch (err: unknown) {
+      console.warn("Export notification dispatch failed:", err instanceof Error ? err.message : "Unknown error");
       return { success: false, message: "Could not send export notification." };
     }
   },

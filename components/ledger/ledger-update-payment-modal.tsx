@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { X, Calendar as CalendarIcon, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { LedgerRecord, paymentService } from "@/lib/api";
 import { getTodayDateString } from "@/lib/date-utils";
@@ -12,13 +12,16 @@ interface LedgerUpdatePaymentModalProps {
   onPaymentSuccess: () => void;
 }
 
-export function LedgerUpdatePaymentModal({
-  isOpen,
+export function LedgerUpdatePaymentModal(props: LedgerUpdatePaymentModalProps) {
+  if (!props.isOpen || !props.record) return null;
+  return <LedgerPaymentForm {...props} record={props.record} key={props.record.id} />;
+}
+
+function LedgerPaymentForm({
   onClose,
   record,
   onPaymentSuccess,
-}: LedgerUpdatePaymentModalProps) {
-  if (!isOpen || !record) return null;
+}: Omit<LedgerUpdatePaymentModalProps, "record"> & { record: LedgerRecord }) {
 
   const totalPremium =
     typeof record.total_premium === "number"
@@ -38,7 +41,7 @@ export function LedgerUpdatePaymentModal({
   const isFullyPaid = outstanding <= 0;
 
   const [paymentType, setPaymentType] = useState<"full" | "partial">(
-    outstanding > 0 ? "full" : "full"
+    "full"
   );
   const [discount, setDiscount] = useState<number | string>(0);
   const [amount, setAmount] = useState<number | string>(() =>
@@ -51,30 +54,6 @@ export function LedgerUpdatePaymentModal({
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  // Reset or initialize when modal opens or record changes
-  useEffect(() => {
-    if (record) {
-      const out =
-        typeof record.outstanding === "number"
-          ? record.outstanding
-          : parseFloat(String(record.outstanding || 0));
-      if (out > 0) {
-        setPaymentType("full");
-        setDiscount(0);
-        setAmount(out);
-      } else {
-        setPaymentType("full");
-        setDiscount(0);
-        setAmount(0);
-      }
-      setPaymentMode("UPI");
-      setPaymentDate(getTodayDateString());
-      setRemarks("");
-      setError("");
-      setSubmitting(false);
-    }
-  }, [record]);
 
   const numDiscount = parseFloat(String(discount)) || 0;
   const numAmount = parseFloat(String(amount)) || 0;
