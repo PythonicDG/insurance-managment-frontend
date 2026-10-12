@@ -129,7 +129,7 @@ export default function BulkUploadPage() {
                 event.target.value = "";
               } else setFile(selected);
             }} className="block w-full rounded-xl border border-dashed border-slate-300 p-4 text-sm" />
-            <p className="mt-2 text-xs text-slate-500">First worksheet, headers on row 1. Maximum 2,000 data rows and 10 MB. Dates: YYYY-MM-DD or DD/MM/YYYY. Use plain values without formulas.</p>
+            <p className="mt-2 text-xs text-slate-500">First worksheet, headers on row 1. Maximum 2,000 data rows and 10 MB. Dates: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, or DD.MM.YYYY (e.g. 02.10.2025). Use plain values without formulas.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" disabled={!!busy || !template || !file} onClick={() => submit(false)} className={`${buttonClass} bg-blue-600 text-white`}>
@@ -139,22 +139,26 @@ export default function BulkUploadPage() {
               {busy === "import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Import validated file
             </button>
           </div>
-          <p className="text-xs text-slate-500">Existing customers with the same phone/name are skipped. Duplicate policies and conflicting vehicle ownership are rejected. If any row fails, the whole upload is cancelled.</p>
+          <p className="text-xs text-slate-500">Existing customers are skipped; matching deleted customers and policies are restored. Deleted vehicles with no live policies can use the uploaded customer, with owner changes shown as warnings for review. Archived payments remain archived. Live owner conflicts and other validation errors cancel the whole upload.</p>
         </section>
         {error && <div role="alert" className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><AlertCircle className="h-5 w-5 shrink-0" />{error}</div>}
         {result && <section aria-live="polite" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-semibold text-slate-900">{imported ? "Import completed" : "Validation result"}</h2>
-          <p className="text-sm text-slate-600">{result.total_rows} rows · {result.created} {imported ? "created" : "ready to create"} · {result.skipped} skipped · {result.errors.length} errors</p>
+          <p className="text-sm text-slate-600">{result.total_rows} rows · {result.created} {imported ? "created" : "ready to create"} · {result.restored ?? 0} {imported ? "restored" : "ready to restore"} · {result.skipped} skipped · {result.errors.length} errors</p>
           {result.message && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{result.message}</p>}
           {imported && <Link href={template?.target === "customers" ? "/customers" : "/insurance-records"} className="inline-block text-sm font-semibold text-blue-600">View imported {template?.target === "customers" ? "customers" : "insurance records"} →</Link>}
           {result.warnings.length > 0 && <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{result.warnings.join(" · ")}</div>}
+          {!!result.skipped_rows?.length && <div className="max-h-96 overflow-auto rounded-xl border border-amber-200 bg-amber-50">
+            <p className="p-3 text-sm font-medium text-amber-900">Skipped rows — existing active policies kept unchanged</p>
+            <table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-3">Excel row</th><th className="p-3">Reason</th></tr></thead><tbody>{result.skipped_rows.map((item) => <tr key={item.row} className="border-b"><td className="p-3 align-top">{item.row}</td><td className="p-3 text-amber-800">{item.reason}</td></tr>)}</tbody></table>
+          </div>}
           {result.errors.length > 0 && <>
             <button type="button" onClick={downloadErrors} className={`${buttonClass} border border-slate-300`}><Download className="h-4 w-4" /> Download error report</button>
             <div className="max-h-96 overflow-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-3">Excel row</th><th className="p-3">Error</th></tr></thead><tbody>{result.errors.map((item) => <tr key={item.row} className="border-b"><td className="p-3 align-top">{item.row}</td><td className="p-3 text-red-700">{describe(item.errors)}</td></tr>)}</tbody></table></div>
           </>}
           {result.sample.length > 0 && <div className="overflow-x-auto">
             <p className="mb-2 text-sm font-medium text-slate-700">Preview (up to 10 valid rows)</p>
-            <table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-3">Row</th><th className="p-3">Action</th><th className="p-3">Values</th></tr></thead><tbody>{result.sample.map((item) => <tr key={item.row} className="border-b"><td className="p-3 align-top">{item.row}</td><td className="p-3 align-top">{item.status === "created" ? imported ? "Created" : "Create" : "Skip existing"}</td><td className="min-w-64 p-3 text-slate-600">{describe(item.values)}</td></tr>)}</tbody></table>
+            <table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-3">Row</th><th className="p-3">Action</th><th className="p-3">Values</th></tr></thead><tbody>{result.sample.map((item) => <tr key={item.row} className="border-b"><td className="p-3 align-top">{item.row}</td><td className="p-3 align-top">{item.status === "created" ? imported ? "Created" : "Create" : item.status === "restored" ? imported ? "Restored" : "Restore" : "Skip existing"}</td><td className="min-w-64 p-3 text-slate-600">{describe(item.values)}</td></tr>)}</tbody></table>
           </div>}
         </section>}
       </div>

@@ -12,7 +12,9 @@ export interface UploadResult {
   valid: boolean;
   total_rows: number;
   created: number;
+  restored?: number;
   skipped: number;
+  skipped_rows?: { row: number; reason: string }[];
   errors: { row: number; errors: Record<string, unknown> | unknown[] }[];
   warnings: string[];
   sample: { row: number; status: string; values: Record<string, string> }[];
