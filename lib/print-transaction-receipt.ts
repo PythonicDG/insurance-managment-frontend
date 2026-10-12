@@ -2184,6 +2184,12 @@ export function printOutstandingLedgerReport({
     return phone;
   };
 
+  const formatCompactDate = (date?: string) => {
+    if (!date) return "—";
+    const [year, month, day] = date.split("T")[0].split("-");
+    return year && month && day ? `${day}/${month}/${year}` : formatDisplayDate(date);
+  };
+
   const rowsHtml =
     records.length === 0
       ? `<tr><td colspan="11" class="empty-state">No outstanding or ledger entries match your filter criteria.</td></tr>`
@@ -2193,11 +2199,6 @@ export function printOutstandingLedgerReport({
             const disc = typeof r.discount === "number" ? r.discount : parseFloat(String(r.discount || 0)) || 0;
             const paid = typeof r.paid_amount === "number" ? r.paid_amount : parseFloat(String(r.paid_amount || 0)) || 0;
             const out = typeof r.outstanding === "number" ? r.outstanding : parseFloat(String(r.outstanding || 0)) || 0;
-
-            const isPaid = r.status === "Paid" || out <= 0;
-            const isPartial = r.status === "Partial" || (paid > 0 && out > 0);
-            const statusClass = isPaid ? "badge-paid" : isPartial ? "badge-partial" : "badge-out";
-            const statusText = isPaid ? "Paid" : isPartial ? "Partial" : "Outstanding";
 
             const altPhone = r.customer_alternative_mobile_number || r.alternative_mobile_number;
 
@@ -2213,14 +2214,12 @@ export function printOutstandingLedgerReport({
                 <span class="badge-plate font-mono">${escapeHtml(r.vehicle_number || "—")}</span>
               </td>
               <td class="text-dark font-medium">${escapeHtml(r.insurance_company_name || "—")}</td>
-              <td class="font-mono text-muted">${escapeHtml(r.policy_number || "—")}</td>
+              <td class="date-cell text-muted">${escapeHtml(formatCompactDate(r.policy_start_date))}</td>
+              <td class="date-cell text-muted">${escapeHtml(formatCompactDate(r.policy_expiry_date))}</td>
               <td class="col-right font-medium text-dark">${formatCurrency(prem)}</td>
               <td class="col-right font-medium" style="color: #b45309;">${disc > 0 ? formatCurrency(disc) : "—"}</td>
               <td class="col-right font-medium text-green">${formatCurrency(paid)}</td>
               <td class="col-right font-bold text-red">${formatCurrency(out)}</td>
-              <td class="col-center">
-                <span class="status-badge ${statusClass}">${statusText}</span>
-              </td>
             </tr>`;
           })
           .join("");
@@ -2336,14 +2335,19 @@ export function printOutstandingLedgerReport({
     .metrics-table {
       width: 100%;
       border-collapse: separate;
-      border-spacing: 8px 0;
+      border-spacing: 6px 0;
+      table-layout: fixed;
       margin-bottom: 12px;
     }
     .metric-cell {
-      width: 25%;
+      width: 20%;
+      height: 80px;
+      min-height: 80px;
+      box-sizing: border-box;
       border-radius: 8px;
-      padding: 8px 12px;
-      vertical-align: middle;
+      padding: 10px 12px;
+      vertical-align: top;
+      white-space: nowrap;
     }
     .metric-blue {
       background: #eff6ff;
@@ -2352,6 +2356,10 @@ export function printOutstandingLedgerReport({
     .metric-green {
       background: #ecfdf5;
       border: 1px solid #a7f3d0;
+    }
+    .metric-amber {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
     }
     .metric-red {
       background: #fef2f2;
@@ -2362,21 +2370,24 @@ export function printOutstandingLedgerReport({
       border: 1px solid #cbd5e1;
     }
     .metric-title {
-      font-size: 9px;
+      font-size: 8.5px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 2px;
+      margin-bottom: 6px;
+      white-space: nowrap;
     }
     .metric-blue .metric-title { color: #1e40af; }
     .metric-green .metric-title { color: #047857; }
+    .metric-amber .metric-title { color: #b45309; }
     .metric-red .metric-title { color: #b91c1c; }
     .metric-slate .metric-title { color: #475569; }
 
     .metric-amount {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 800;
       line-height: 1.1;
+      white-space: nowrap;
     }
     .metric-blue .metric-amount { color: #1e3a8a; }
     .metric-green .metric-amount { color: #059669; }
@@ -2394,7 +2405,7 @@ export function printOutstandingLedgerReport({
     table.report-table {
       width: 100%;
       border-collapse: collapse;
-      table-layout: auto;
+      table-layout: fixed;
     }
     thead {
       display: table-header-group;
@@ -2403,14 +2414,15 @@ export function printOutstandingLedgerReport({
       background-color: #f1f5f9;
       color: #334155;
       font-weight: 700;
-      font-size: 9.5px;
+      font-size: 8.5px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: 8px 7px;
+      letter-spacing: 0.2px;
+      padding: 6px 4px;
       text-align: left;
       border-bottom: 2px solid #94a3b8;
       border-right: 1px solid #cbd5e1;
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     thead th:last-child {
       border-right: none;
@@ -2423,11 +2435,12 @@ export function printOutstandingLedgerReport({
       background-color: #f8fafc;
     }
     tbody td {
-      padding: 7px 7px;
+      padding: 6px 4px;
       vertical-align: middle;
       border-bottom: 1px solid #e2e8f0;
       border-right: 1px solid #e2e8f0;
-      font-size: 10.5px;
+      font-size: 9px;
+      overflow-wrap: anywhere;
     }
     tbody td:last-child {
       border-right: none;
@@ -2439,15 +2452,16 @@ export function printOutstandingLedgerReport({
       background: #f8fafc;
       font-weight: 800;
       border-top: 2px solid #cbd5e1;
-      padding: 8px 7px;
-      font-size: 11px;
+      padding: 6px 4px;
+      font-size: 9.5px;
     }
 
     .col-center { text-align: center; }
-    .col-right { text-align: right; }
+    .col-right { text-align: right; white-space: nowrap; }
     .font-bold { font-weight: 700; }
     .font-medium { font-weight: 600; }
-    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 8.5px; }
+    .date-cell { white-space: nowrap; font-size: 8.5px; }
     .text-muted { color: #64748b; }
     .text-dark { color: #0f172a; }
     .text-green { color: #059669; }
@@ -2458,20 +2472,24 @@ export function printOutstandingLedgerReport({
       background: #f1f5f9;
       border: 1px solid #cbd5e1;
       color: #0f172a;
-      padding: 1.5px 6px;
+      max-width: 100%;
+      padding: 1.5px 4px;
       border-radius: 4px;
       font-weight: 700;
       letter-spacing: 0.5px;
+      overflow-wrap: anywhere;
     }
 
     .status-badge {
       display: inline-block;
-      padding: 2px 7px;
+      max-width: 100%;
+      padding: 2px 4px;
       border-radius: 4px;
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.3px;
+      overflow-wrap: anywhere;
     }
     .badge-paid {
       background: #ecfdf5;
@@ -2575,15 +2593,10 @@ export function printOutstandingLedgerReport({
           <div class="metric-title">Total Premium</div>
           <div class="metric-amount">${formatCurrency(totalPremium)}</div>
         </td>
-        ${
-          totalDiscount > 0
-            ? `
         <td class="metric-cell metric-amber">
           <div class="metric-title">Total Discount</div>
           <div class="metric-amount" style="color: #b45309;">${formatCurrency(totalDiscount)}</div>
-        </td>`
-            : ""
-        }
+        </td>
         <td class="metric-cell metric-green">
           <div class="metric-title">Total Received</div>
           <div class="metric-amount">${formatCurrency(totalPaid)}</div>
@@ -2605,16 +2618,16 @@ export function printOutstandingLedgerReport({
         <thead>
           <tr>
             <th style="width: 3%; text-align: center;">#</th>
-            <th style="width: 16%;">Customer Name</th>
-            <th style="width: 12%;">Phone</th>
+            <th style="width: 19%;">Customer Name</th>
+            <th style="width: 10%;">Phone</th>
             <th style="width: 10%;">Vehicle Number</th>
-            <th style="width: 12%;">Insurance Company</th>
-            <th style="width: 10%;">Policy Number</th>
-            <th style="width: 10%; text-align: right;">Total Premium</th>
-            <th style="width: 8%; text-align: right;">Discount</th>
-            <th style="width: 9%; text-align: right;">Paid Amount</th>
+            <th style="width: 10%;">Insurance Company</th>
+            <th style="width: 7.5%;">S. Date</th>
+            <th style="width: 7.5%;">E. Date</th>
+            <th style="width: 9%; text-align: right;">Total Premium</th>
+            <th style="width: 7%; text-align: right;">Discount</th>
+            <th style="width: 8%; text-align: right;">Paid Amount</th>
             <th style="width: 9%; text-align: right;">Outstanding</th>
-            <th style="width: 4%; text-align: center;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2624,12 +2637,11 @@ export function printOutstandingLedgerReport({
           records.length > 0
             ? `<tfoot>
                 <tr>
-                  <td colspan="6" style="text-align: right;">Total Summary (${records.length} Policies):</td>
+                  <td colspan="7" style="text-align: right;">Total Summary (${records.length} Policies):</td>
                   <td style="text-align: right; color: #0f172a;">${formatCurrency(totalPremium)}</td>
                   <td style="text-align: right; color: #b45309;">${formatCurrency(totalDiscount)}</td>
                   <td style="text-align: right; color: #059669;">${formatCurrency(totalPaid)}</td>
                   <td style="text-align: right; color: #dc2626;">${formatCurrency(totalOutstanding)}</td>
-                  <td></td>
                 </tr>
               </tfoot>`
             : ""
