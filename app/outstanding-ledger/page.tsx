@@ -34,7 +34,7 @@ import {
 import { LedgerUpdatePaymentModal } from "@/components/ledger/ledger-update-payment-modal";
 import { LedgerRecordDetailModal } from "@/components/ledger/ledger-record-detail-modal";
 import { Toast, ToastType } from "@/components/ui/toast";
-import { formatLocalDateISO } from "@/lib/date-utils";
+import { formatDisplayDate, formatLocalDateISO } from "@/lib/date-utils";
 import { printOutstandingLedgerReport } from "@/lib/print-transaction-receipt";
 import { ExportPinModal } from "@/components/modals/export-pin-modal";
 
@@ -327,7 +327,8 @@ export default function OutstandingLedgerPage() {
       "Phone",
       "Vehicle Number",
       "Insurance Company",
-      "Policy Number",
+      "Insurance Start Date",
+      "Insurance End Date",
       "Total Premium",
       "Discount",
       "Paid Amount",
@@ -340,7 +341,8 @@ export default function OutstandingLedgerPage() {
       `"${r.customer_phone || ""}"`,
       `"${r.vehicle_number || ""}"`,
       `"${r.insurance_company_name || ""}"`,
-      `"${r.policy_number || ""}"`,
+      `"${r.policy_start_date ? formatDisplayDate(r.policy_start_date) : ""}"`,
+      `"${r.policy_expiry_date ? formatDisplayDate(r.policy_expiry_date) : ""}"`,
       r.total_premium,
       r.discount || 0,
       r.paid_amount,
