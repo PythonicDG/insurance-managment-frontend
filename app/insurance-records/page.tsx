@@ -825,9 +825,48 @@ function InsuranceRecordsContent() {
   };
 
   // Export CSV
-  const executeExportCSV = () => {
+  const executeExportCSV = async () => {
     if (records.length === 0) {
       showToast("info", "No records", "There are no records to export.");
+      return;
+    }
+
+    // The table only holds one paginated page. Fetch the full filtered result
+    // set before constructing the file so the export is never limited to the
+    // page currently being viewed.
+    let recordsToExport: InsuranceRecordItem[];
+    try {
+      showToast("info", "Preparing Export", "Loading all filtered records for CSV export...");
+      const params: Record<string, string | number> = { paginate: "false" };
+
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (selectedCompany !== "All Companies") {
+        const matched = companies.find((company) => company.name === selectedCompany);
+        if (matched) params.insurance_company_id = matched.id;
+      }
+      if (selectedStatus !== "All Statuses") {
+        params.status = selectedStatus.toLowerCase().replace(/\s+/g, "_");
+      }
+      if (fromDate.trim()) {
+        const normalizedFrom = normalizeDateToBackend(fromDate.trim());
+        if (normalizedFrom) params.entry_date_from = normalizedFrom;
+      }
+      if (toDate.trim()) {
+        const normalizedTo = normalizeDateToBackend(toDate.trim());
+        if (normalizedTo) params.entry_date_to = normalizedTo;
+      }
+      if (sortField) {
+        params.ordering = sortDirection === "desc" ? `-${sortField}` : sortField;
+      }
+
+      const response = await insuranceRecordService.getAll(params);
+      const allRecords = Array.isArray(response)
+        ? response
+        : response.results ?? [];
+      recordsToExport = allRecords.map(augmentRecordWithPayments);
+    } catch (error) {
+      console.error("Failed to load all records for CSV export", error);
+      showToast("error", "Export Failed", "Could not load all filtered records. No file was created.");
       return;
     }
 
@@ -849,7 +888,7 @@ function InsuranceRecordsContent() {
       return `"${String(val).replace(/"/g, '""')}"`;
     };
 
-    const rows = records.map((r) => {
+    const rows = recordsToExport.map((r) => {
       const rawStartDate = r.policy_start_date || "";
       const formattedStartDate = rawStartDate ? formatDisplayDate(rawStartDate) : "";
       const startDateCell = formattedStartDate ? `="${formattedStartDate}"` : '""';
@@ -898,13 +937,13 @@ function InsuranceRecordsContent() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast("success", "Export Ready", "CSV file generated from current records.");
+    showToast("success", "Export Ready", `Exported ${recordsToExport.length} insurance records as CSV.`);
 
     // Notify Business Email of the data download
     settingsService.notifyExport({
       action_type: "export_csv",
       source_module: "insurance_records",
-      record_count: records.length,
+      record_count: recordsToExport.length,
       filters: {
         search: searchQuery.trim() || undefined,
         company: selectedCompany !== "All Companies" ? selectedCompany : undefined,
