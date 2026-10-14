@@ -167,7 +167,7 @@ export function CustomerLookupSection({
         {/* Phone Number Input with Lookup trigger */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-            Phone Number <span className="text-red-500">*</span>
+            Phone Number <span className="text-slate-400 font-normal">(Optional)</span>
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -175,7 +175,6 @@ export function CustomerLookupSection({
             </div>
             <input
               type="tel"
-              required
               disabled={disabled}
               value={customerPhone}
               onChange={(e) => {
@@ -225,7 +224,7 @@ export function CustomerLookupSection({
             )}
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            Enter exactly 10 digits. Customer lookup runs automatically.
+            Enter 10 digits to find an existing customer. Leave blank when no phone number is available.
           </p>
           {customerPhone.length > 0 && customerPhone.length < 10 && (
             <p className="mt-1 text-xs font-medium text-red-600">

@@ -63,6 +63,7 @@ function AddInsuranceRecordForm() {
   const [vehicleNumber, setVehicleNumber] = useState(() =>
     normalizeVehicleNumber(searchParams.get("vehicle") || "")
   );
+  const [isNewVehicle, setIsNewVehicle] = useState(false);
   const [vehicleCheck, setVehicleCheck] = useState<VehicleCheckResponse | null>(null);
   const [checkingVehicle, setCheckingVehicle] = useState(false);
   const [vehicleError, setVehicleError] = useState("");
@@ -164,7 +165,9 @@ function AddInsuranceRecordForm() {
             setCustomerEmail(rec.customer?.email || "");
             setCustomerAddress(rec.customer?.address || "");
             setVehicleType(rec.vehicle?.vehicle_type || "Car");
-            setVehicleNumber(normalizeVehicleNumber(rec.vehicle?.vehicle_number || ""));
+            const registrationPending = Boolean(rec.vehicle?.registration_pending);
+            setIsNewVehicle(registrationPending);
+            setVehicleNumber(registrationPending ? "" : normalizeVehicleNumber(rec.vehicle?.vehicle_number || ""));
             if (rec.insurance_company?.id) {
               setSelectedCompanyId(rec.insurance_company.id);
             }
@@ -277,6 +280,12 @@ function AddInsuranceRecordForm() {
 
   // Debounced vehicle active policy check
   useEffect(() => {
+    if (isNewVehicle) {
+      setVehicleCheck(null);
+      setVehicleError("");
+      setCheckingVehicle(false);
+      return;
+    }
     const normalized = normalizeVehicleNumber(vehicleNumber);
     let active = true;
 
@@ -347,9 +356,10 @@ function AddInsuranceRecordForm() {
       active = false;
       clearTimeout(timer);
     };
-  }, [vehicleNumber, isEditMode, editId, vehicleType, customerPhone, customerName, customerAltPhone]);
+  }, [vehicleNumber, isNewVehicle, isEditMode, editId, vehicleType, customerPhone, customerName, customerAltPhone]);
 
   const handleVehicleNumberBlur = async () => {
+    if (isNewVehicle) return;
     const normalized = normalizeVehicleNumber(vehicleNumber);
     if (!normalized) return;
 
@@ -463,18 +473,18 @@ function AddInsuranceRecordForm() {
       setErrorMessage("Please enter customer name.");
       return;
     }
-    if (!/^\d{10}$/.test(customerPhone)) {
+    if (customerPhone && !/^\d{10}$/.test(customerPhone)) {
       setErrorMessage("Please enter a valid 10-digit customer mobile number.");
       return;
     }
     const normalizedVeh = normalizeVehicleNumber(vehicleNumber);
-    if (!normalizedVeh) {
+    if (!isNewVehicle && !normalizedVeh) {
       setVehicleError("Please enter vehicle number.");
       setErrorMessage("Please enter vehicle number.");
       return;
     }
-    const vehValidation = validateVehicleRegistration(normalizedVeh);
-    if (!vehValidation.isValid) {
+    const vehValidation = !isNewVehicle && validateVehicleRegistration(normalizedVeh);
+    if (vehValidation && !vehValidation.isValid) {
       const err = vehValidation.error || "Please enter a valid Indian vehicle registration number.";
       setVehicleError(err);
       setErrorMessage(err);
@@ -517,13 +527,13 @@ function AddInsuranceRecordForm() {
     }
 
     // Prevent submission if active policy already exists on this vehicle
-    if (vehicleCheck?.has_active_policy && vehicleCheck.active_record && !isEditMode) {
+    if (!isNewVehicle && vehicleCheck?.has_active_policy && vehicleCheck.active_record && !isEditMode) {
       setErrorMessage(
         `Active policy #${vehicleCheck.active_record.policy_number} already exists for vehicle "${normalizedVeh}". Please renew or update the existing policy.`
       );
       return;
     }
-    if (vehicleCheck?.has_scheduled_renewal && vehicleCheck.scheduled_record && !isEditMode) {
+    if (!isNewVehicle && vehicleCheck?.has_scheduled_renewal && vehicleCheck.scheduled_record && !isEditMode) {
       setErrorMessage(
         `Renewal policy #${vehicleCheck.scheduled_record.policy_number} is already scheduled for vehicle "${normalizedVeh}".`
       );
@@ -550,7 +560,7 @@ function AddInsuranceRecordForm() {
       }
 
       // Synchronous vehicle active policy double-check
-      if (!isEditMode && normalizedVeh) {
+      if (!isNewVehicle && !isEditMode && normalizedVeh) {
         const vCheck = await insuranceRecordService.checkVehicle(
           normalizedVeh,
           isEditMode && editId ? Number(editId) : undefined
@@ -586,6 +596,7 @@ function AddInsuranceRecordForm() {
         customer_address: customerAddress.trim() || undefined,
         vehicle_number: normalizedVeh,
         vehicle_type: vehicleType.trim(),
+        is_new_vehicle: isNewVehicle,
         entry_date: entryDate || getTodayDateString(),
         policy_start_date: startDate,
         policy_expiry_date: endDate,
@@ -782,7 +793,7 @@ function AddInsuranceRecordForm() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-700">
-                      Vehicle Number
+                      Vehicle Number {!isNewVehicle && <span className="text-red-500">*</span>}
                     </label>
                     {checkingVehicle && (
                       <span className="flex items-center gap-1.5 text-[11px] text-blue-600 font-medium">
@@ -794,7 +805,8 @@ function AddInsuranceRecordForm() {
                   <div className="relative">
                     <input
                       type="text"
-                      required
+                      required={!isNewVehicle}
+                      disabled={isNewVehicle}
                       value={vehicleNumber}
                       onChange={(e) => {
                         const normalized = normalizeVehicleNumber(e.target.value);
@@ -807,7 +819,7 @@ function AddInsuranceRecordForm() {
                         }
                       }}
                       onBlur={handleVehicleNumberBlur}
-                      placeholder="e.g. MH12AB1234 or 22BH1234AA"
+                      placeholder={isNewVehicle ? "Registration number pending" : "e.g. MH12AB1234 or 22BH1234AA"}
                       className={`w-full px-3.5 py-2.5 text-xs sm:text-sm bg-white border rounded-xl text-slate-800 placeholder:text-slate-400 font-mono uppercase focus:outline-none focus:ring-2 transition-colors ${
                         vehicleCheck?.has_active_policy
                           ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/15"
@@ -822,6 +834,26 @@ function AddInsuranceRecordForm() {
                       </div>
                     )}
                   </div>
+                  <label className="mt-2 flex items-start gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isNewVehicle}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsNewVehicle(checked);
+                        if (checked) {
+                          setVehicleNumber("");
+                          setVehicleCheck(null);
+                          setVehicleError("");
+                        }
+                      }}
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>
+                      New vehicle — registration number has not been issued yet.
+                      {isEditMode && isNewVehicle && " Uncheck this when the number is available."}
+                    </span>
+                  </label>
                   {vehicleError && !vehicleCheck?.has_active_policy && (
                     <p className="mt-1.5 text-xs text-red-600 font-medium flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
@@ -831,7 +863,7 @@ function AddInsuranceRecordForm() {
                 </div>
 
                 {/* Vehicle Active Policy Alert / Expired Policy Notice */}
-                {vehicleCheck && (
+                {!isNewVehicle && vehicleCheck && (
                   <div className="md:col-span-2">
                     <VehicleActivePolicyAlert
                       vehicleNumber={vehicleNumber}
@@ -1251,12 +1283,12 @@ function AddInsuranceRecordForm() {
                 disabled={
                   submitting ||
                   Boolean(
-                    (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) &&
+                    !isNewVehicle && (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) &&
                       !isEditMode
                   )
                 }
                 title={
-                  (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !isEditMode
+                  !isNewVehicle && (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !isEditMode
                     ? "A current or scheduled policy already exists for this vehicle."
                     : undefined
                 }
@@ -1267,7 +1299,7 @@ function AddInsuranceRecordForm() {
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Saving...</span>
                   </span>
-                ) : (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !isEditMode ? (
+                ) : !isNewVehicle && (vehicleCheck?.has_active_policy || vehicleCheck?.has_scheduled_renewal) && !isEditMode ? (
                   "Policy Already Exists"
                 ) : isEditMode ? (
                   "Update Record"

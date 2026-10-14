@@ -139,6 +139,7 @@ export interface VehicleSummary {
   id?: number;
   vehicle_type: string;
   vehicle_number: string;
+  registration_pending?: boolean;
 }
 
 export interface InsuranceCompanySummary {
@@ -240,6 +241,7 @@ export interface InsuranceRecordPayload {
   customer_address?: string;
   vehicle_number: string;
   vehicle_type?: string;
+  is_new_vehicle?: boolean;
   policy_start_date: string;
   policy_expiry_date: string;
   entry_date?: string;
