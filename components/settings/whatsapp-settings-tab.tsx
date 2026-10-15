@@ -55,7 +55,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
 
   // Test message states
   const [testRecipient, setTestRecipient] = useState("");
-  const [testType, setTestType] = useState<"direct_text" | "template_policy" | "template_payment">("direct_text");
+  const [testType, setTestType] = useState<"direct_text" | "template_policy" | "template_payment">("template_policy");
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -195,7 +195,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
         wamid: res.log?.wamid,
       });
       if (res.success) {
-        showToast("success", "Message Sent!", "WhatsApp test message sent successfully.");
+        showToast("success", "Accepted by Meta", "Delivery is pending until a webhook confirms it.");
       } else {
         showToast("error", "Sending Failed", res.message);
       }
@@ -233,10 +233,11 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
     }
   };
 
-  const webhookUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/api/whatsapp/webhook/`
-      : "https://your-domain.com/api/whatsapp/webhook/";
+  const apiOrigin = (process.env.NEXT_PUBLIC_API_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "https://your-api-domain.com")).replace(/\/+$/, "");
+  const webhookUrl = `${apiOrigin}/api/whatsapp/webhook/`;
+  const webhookIsPublic = apiOrigin.startsWith("https://") &&
+    !/^https:\/\/(localhost|127\.0\.0\.1)(:|$)/i.test(apiOrigin);
 
   const handleCopyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -580,7 +581,8 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
             </div>
 
             {/* Form Actions */}
-            <RenewalReminderSettings value={renewal} onChange={changes => setRenewal(current => ({ ...current, ...changes }))} />
+            <RenewalReminderSettings value={renewal} onChange={changes => setRenewal(current => ({ ...current, ...changes }))}
+              readinessIssues={config?.renewal_readiness_issues || []} />
             <div className="pt-3 flex items-center justify-end gap-3">
               <button
                 type="submit"
@@ -603,7 +605,8 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
               <button
                 type="button"
                 onClick={handleCopyWebhook}
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                disabled={!webhookIsPublic}
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedWebhook ? "Copied!" : "Copy Webhook URL"}</span>
@@ -615,6 +618,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
             <div className="bg-white p-3 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 break-all select-all flex items-center justify-between">
               <span>{webhookUrl}</span>
             </div>
+            {!webhookIsPublic && <p className="text-xs text-amber-800">Delivery receipts need a public HTTPS backend URL. Set NEXT_PUBLIC_API_URL to that address before configuring Meta's webhook; localhost cannot receive Meta events.</p>}
             <p className="text-[11px] text-slate-500">
               Verify Token: <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono text-slate-800">{webhookToken}</code>. Subscribe to the <code className="font-semibold text-slate-800">messages</code> event to receive real-time delivered and read receipts!
             </p>
@@ -663,7 +667,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
                   onChange={(e) => setTestType(e.target.value as "direct_text" | "template_policy" | "template_payment")}
                   className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white cursor-pointer"
                 >
-                  <option value="direct_text">Direct Text Ping (Testing Sandbox)</option>
+                  <option value="direct_text">Direct Text (requires an open 24-hour chat window)</option>
                   <option value="template_policy">Policy Issued Template Preview</option>
                   <option value="template_payment">Payment Receipt Template Preview</option>
                 </select>
@@ -683,7 +687,7 @@ export function WhatsAppSettingsTab({ showToast }: WhatsAppSettingsTabProps) {
                     ) : (
                       <XCircle className="w-4 h-4 text-red-600" />
                     )}
-                    <span>{testResult.success ? "Send Success" : "Send Failed"}</span>
+                    <span>{testResult.success ? "Accepted by Meta" : "Send Failed"}</span>
                   </div>
                   <p>{testResult.message}</p>
                   {testResult.wamid && (

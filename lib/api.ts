@@ -1024,6 +1024,8 @@ export const ledgerService = {
     payment_status?: string;
     date_from?: string;
     date_to?: string;
+    policy_start_date_from?: string;
+    policy_start_date_to?: string;
     page?: number;
     page_size?: number;
     ordering?: string;
@@ -1041,6 +1043,8 @@ export const ledgerService = {
     insurance_company_id?: number | string;
     date_from?: string;
     date_to?: string;
+    policy_start_date_from?: string;
+    policy_start_date_to?: string;
   }): Promise<LedgerSummary> {
     const response = await apiClient.get<LedgerSummary>("/payments/ledger/summary/", {
       params,
@@ -1082,6 +1086,7 @@ export interface WhatsAppConfig {
   renewal_stages: number[];
   renewal_daily_cap: number;
   renewal_language: string;
+  renewal_readiness_issues: string[];
   updated_at: string;
 }
 

@@ -139,8 +139,8 @@ export default function OutstandingLedgerPage() {
           search: searchQuery.trim() || undefined,
           insurance_company_id: selectedCompany !== "all" ? selectedCompany : undefined,
           payment_status: selectedStatus,
-          date_from: fromDate || undefined,
-          date_to: toDate || undefined,
+          policy_start_date_from: fromDate || undefined,
+          policy_start_date_to: toDate || undefined,
           page: pageToLoad,
           page_size: pageSize,
         });
@@ -310,8 +310,8 @@ export default function OutstandingLedgerPage() {
         if (searchQuery.trim()) params.search = searchQuery.trim();
         if (selectedCompany !== "all") params.insurance_company_id = selectedCompany;
         if (selectedStatus !== "all") params.payment_status = selectedStatus;
-        if (fromDate.trim()) params.date_from = fromDate.trim();
-        if (toDate.trim()) params.date_to = toDate.trim();
+        if (fromDate.trim()) params.policy_start_date_from = fromDate.trim();
+        if (toDate.trim()) params.policy_start_date_to = toDate.trim();
 
         const res = await ledgerService.getLedger(params);
         if (res && Array.isArray(res.results)) {
@@ -400,8 +400,8 @@ export default function OutstandingLedgerPage() {
         if (selectedStatus !== "all") {
           params.payment_status = selectedStatus;
         }
-        if (fromDate.trim()) params.date_from = fromDate.trim();
-        if (toDate.trim()) params.date_to = toDate.trim();
+        if (fromDate.trim()) params.policy_start_date_from = fromDate.trim();
+        if (toDate.trim()) params.policy_start_date_to = toDate.trim();
 
         const res = await ledgerService.getLedger(params);
         if (res && Array.isArray(res.results)) {
@@ -458,7 +458,7 @@ export default function OutstandingLedgerPage() {
             {/* Month, Year and custom period filter shared with Dashboard */}
             <div className="sm:col-span-2 xl:col-span-3">
               <label className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Date / Period
+                Insurance Start Date / Period
               </label>
               <DashboardDateFilter
                 value={dateFilter}

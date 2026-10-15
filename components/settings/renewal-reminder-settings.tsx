@@ -13,8 +13,9 @@ const times = [...Array.from({ length: 24 }, (_, i) => 600 + i * 5),
   ...Array.from({ length: 18 }, (_, i) => 990 + i * 5)].map(minutes =>
     `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`);
 
-export function RenewalReminderSettings({ value, onChange }: {
+export function RenewalReminderSettings({ value, onChange, readinessIssues }: {
   value: Partial<WhatsAppConfig>; onChange: (value: Partial<WhatsAppConfig>) => void;
+  readinessIssues: string[];
 }) {
   const [stage, setStage] = useState(30);
   const [sending, setSending] = useState(false);
@@ -29,6 +30,11 @@ export function RenewalReminderSettings({ value, onChange }: {
   };
   return <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-4">
     <h4 className="text-sm font-bold text-slate-900">Automated WhatsApp Renewal Reminders</h4>
+    {readinessIssues.length > 0 && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+      <p className="font-semibold">Saved setup is blocking automatic reminders:</p>
+      <ul className="mt-1 list-disc pl-5">{readinessIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>
+      <p className="mt-2">Save the missing settings, then run the separate renewal worker and verify Meta template approvals.</p>
+    </div>}
     <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={value.renewal_enabled ?? false}
       onChange={e => onChange({ renewal_enabled: e.target.checked })} />Enable automatic renewal reminders</label>
     <div className="grid sm:grid-cols-2 gap-4 text-xs">

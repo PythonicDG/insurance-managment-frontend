@@ -323,46 +323,41 @@ function InsuranceRecordsContent() {
     }
   }, []);
 
+  // Keep the table and CSV export on exactly the same search, filter, and sort query.
+  const getRecordQueryParams = useCallback((): Record<string, string | number> => {
+    const params: Record<string, string | number> = {};
+    if (searchQuery.trim()) params.search = searchQuery.trim();
+    if (selectedCompany !== "All Companies") {
+      const matched = companies.find((company) => company.name === selectedCompany);
+      if (matched) params.insurance_company_id = matched.id;
+    }
+    if (selectedStatus !== "All Statuses") {
+      params.status = selectedStatus.toLowerCase().replace(/\s+/g, "_");
+    }
+    if (fromDate.trim()) {
+      const normalizedFrom = normalizeDateToBackend(fromDate.trim());
+      if (normalizedFrom) params.policy_start_date_from = normalizedFrom;
+    }
+    if (toDate.trim()) {
+      const normalizedTo = normalizeDateToBackend(toDate.trim());
+      if (normalizedTo) params.policy_start_date_to = normalizedTo;
+    }
+    if (sortField) {
+      params.ordering = sortDirection === "desc" ? `-${sortField}` : sortField;
+    }
+    return params;
+  }, [searchQuery, selectedCompany, selectedStatus, fromDate, toDate, sortField, sortDirection, companies]);
+
   // Fetch paginated records from backend API
   const fetchRecords = useCallback(
     async (pageToFetch = 1) => {
       setLoading(true);
       try {
-        const params: Record<string, string | number> = {
+        const res = await insuranceRecordService.getAll({
+          ...getRecordQueryParams(),
           page: pageToFetch,
           page_size: pageSize,
-        };
-
-        if (searchQuery.trim()) {
-          params.search = searchQuery.trim();
-        }
-
-        if (selectedCompany !== "All Companies") {
-          const matched = companies.find((c) => c.name === selectedCompany);
-          if (matched) {
-            params.insurance_company_id = matched.id;
-          }
-        }
-
-        if (selectedStatus !== "All Statuses") {
-          params.status = selectedStatus.toLowerCase().replace(/\s+/g, "_");
-        }
-
-        if (fromDate.trim()) {
-          const normalizedFrom = normalizeDateToBackend(fromDate.trim());
-          if (normalizedFrom) params.entry_date_from = normalizedFrom;
-        }
-
-        if (toDate.trim()) {
-          const normalizedTo = normalizeDateToBackend(toDate.trim());
-          if (normalizedTo) params.entry_date_to = normalizedTo;
-        }
-
-        if (sortField) {
-          params.ordering = sortDirection === "desc" ? `-${sortField}` : sortField;
-        }
-
-        const res = await insuranceRecordService.getAll(params);
+        });
 
         if (Array.isArray(res)) {
           const augmented = res.map(augmentRecordWithPayments);
@@ -384,17 +379,7 @@ function InsuranceRecordsContent() {
         setLoading(false);
       }
     },
-    [
-      pageSize,
-      searchQuery,
-      selectedCompany,
-      selectedStatus,
-      fromDate,
-      toDate,
-      sortField,
-      sortDirection,
-      companies,
-    ]
+    [pageSize, getRecordQueryParams]
   );
 
   // Initial load: Fetch companies & initial records
@@ -831,42 +816,37 @@ function InsuranceRecordsContent() {
       return;
     }
 
-    // The table only holds one paginated page. Fetch the full filtered result
-    // set before constructing the file so the export is never limited to the
-    // page currently being viewed.
+    // Fetch every page of the same filtered query used by the table.
     let recordsToExport: InsuranceRecordItem[];
     try {
       showToast("info", "Preparing Export", "Loading all filtered records for CSV export...");
-      const params: Record<string, string | number> = { paginate: "false" };
-
-      if (searchQuery.trim()) params.search = searchQuery.trim();
-      if (selectedCompany !== "All Companies") {
-        const matched = companies.find((company) => company.name === selectedCompany);
-        if (matched) params.insurance_company_id = matched.id;
+      const filterParams = getRecordQueryParams();
+      const allRecords: InsuranceRecordItem[] = [];
+      const exportPageSize = 100;
+      let page = 1;
+      while (true) {
+        const response = await insuranceRecordService.getAll({
+          ...filterParams,
+          page,
+          page_size: exportPageSize,
+        });
+        if (Array.isArray(response)) {
+          allRecords.push(...response);
+          break;
+        }
+        allRecords.push(...(response.results ?? []));
+        if (!response.next || !response.results?.length) break;
+        page += 1;
       }
-      if (selectedStatus !== "All Statuses") {
-        params.status = selectedStatus.toLowerCase().replace(/\s+/g, "_");
-      }
-      if (fromDate.trim()) {
-        const normalizedFrom = normalizeDateToBackend(fromDate.trim());
-        if (normalizedFrom) params.entry_date_from = normalizedFrom;
-      }
-      if (toDate.trim()) {
-        const normalizedTo = normalizeDateToBackend(toDate.trim());
-        if (normalizedTo) params.entry_date_to = normalizedTo;
-      }
-      if (sortField) {
-        params.ordering = sortDirection === "desc" ? `-${sortField}` : sortField;
-      }
-
-      const response = await insuranceRecordService.getAll(params);
-      const allRecords = Array.isArray(response)
-        ? response
-        : response.results ?? [];
       recordsToExport = allRecords.map(augmentRecordWithPayments);
     } catch (error) {
       console.error("Failed to load all records for CSV export", error);
       showToast("error", "Export Failed", "Could not load all filtered records. No file was created.");
+      return;
+    }
+
+    if (recordsToExport.length === 0) {
+      showToast("info", "No records", "There are no matching records to export.");
       return;
     }
 
@@ -1337,27 +1317,9 @@ function InsuranceRecordsContent() {
       try {
         showToast("info", "Preparing Report", "Loading all filtered records for PDF...");
         const params: Record<string, string | number> = {
+          ...getRecordQueryParams(),
           paginate: "false",
         };
-        if (searchQuery.trim()) params.search = searchQuery.trim();
-        if (selectedCompany !== "All Companies") {
-          const matched = companies.find((c) => c.name === selectedCompany);
-          if (matched) params.insurance_company_id = matched.id;
-        }
-        if (selectedStatus !== "All Statuses") {
-          params.status = selectedStatus.toLowerCase().replace(" ", "_");
-        }
-        if (fromDate.trim()) {
-          const norm = normalizeDateToBackend(fromDate.trim());
-          if (norm) params.entry_date_from = norm;
-        }
-        if (toDate.trim()) {
-          const norm = normalizeDateToBackend(toDate.trim());
-          if (norm) params.entry_date_to = norm;
-        }
-        if (sortField) {
-          params.ordering = sortDirection === "desc" ? `-${sortField}` : sortField;
-        }
 
         const res = await insuranceRecordService.getAll(params);
         const all = Array.isArray(res)

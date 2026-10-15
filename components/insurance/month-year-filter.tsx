@@ -24,6 +24,7 @@ export function MonthYearFilter({ fromDate, toDate, onChange }: MonthYearFilterP
 
   return (
     <div className="grid grid-cols-2 gap-3">
+      <span className={`${labelClass} col-span-2 mb-0`}>Insurance Start Date</span>
       <div>
         <label htmlFor={`${id}-month`} className={labelClass}>Month</label>
         <select

@@ -509,7 +509,7 @@ function MobileFiltersDialog({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Month & Year
+                    Insurance Start Month & Year
                   </h3>
                   {(draftFromDate || draftToDate) && (
                     <button
@@ -533,7 +533,7 @@ function MobileFiltersDialog({
                   }}
                 />
                 <p className="text-xs text-slate-500">
-                  Filter by record entry month. Select All months to view the entire year.
+                  Filter by insurance start month. Select All months to view the entire year.
                 </p>
               </div>
             )}
