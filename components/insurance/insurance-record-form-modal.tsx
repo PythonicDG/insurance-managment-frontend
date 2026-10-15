@@ -64,12 +64,7 @@ function InsuranceRecordFormDialog({
   onClose,
   onSave,
 }: DialogProps) {
-  const [policyNumber, setPolicyNumber] = useState(() => {
-    if (recordToEdit?.policy_number) return recordToEdit.policy_number;
-    return `POL-${Math.floor(10000 + Math.random() * 90000)}-${Math.floor(
-      100 + Math.random() * 900
-    )}A`;
-  });
+  const [policyNumber, setPolicyNumber] = useState(() => recordToEdit?.policy_number || "");
 
   const [companyId, setCompanyId] = useState<number | string>(() => {
     return recordToEdit?.insurance_company?.id || (companies[0]?.id ?? "");

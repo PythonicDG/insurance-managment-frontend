@@ -66,12 +66,7 @@ export function RenewPolicyModal({
   useEffect(() => {
     if (!isOpen || !record) return;
 
-    // Auto-generate new policy number suggestion
-    setPolicyNumber(
-      `POL-${Math.floor(10000 + Math.random() * 90000)}-${Math.floor(
-        100 + Math.random() * 900
-      )}R`
-    );
+    setPolicyNumber("");
 
     // Default company
     setCompanyId(record.insurance_company?.id || (companies[0]?.id ?? 1));
@@ -127,6 +122,11 @@ export function RenewPolicyModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
+
+    if (!policyNumber.trim()) {
+      setErrorMsg("Please enter a policy number for the renewal.");
+      return;
+    }
 
     const numPremium = parseFloat(totalPremium);
     if (isNaN(numPremium) || numPremium <= 0) {

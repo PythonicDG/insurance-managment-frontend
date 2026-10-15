@@ -469,6 +469,12 @@ function AddInsuranceRecordForm() {
     e.preventDefault();
     setErrorMessage("");
 
+    const trimmedPolicyNumber = policyNumber.trim();
+    if (!trimmedPolicyNumber) {
+      setErrorMessage("Please enter a policy number.");
+      return;
+    }
+
     if (!customerName.trim()) {
       setErrorMessage("Please enter customer name.");
       return;
@@ -513,15 +519,10 @@ function AddInsuranceRecordForm() {
       return;
     }
 
-    // Backend requires policy_number; auto-generate standard format if optional field left blank
-    const effectivePolicyNumber = policyNumber.trim()
-      ? policyNumber.trim()
-      : `POL-${Math.floor(10000 + Math.random() * 90000)}-${Math.floor(100 + Math.random() * 900)}A`;
-
     // Prevent submission if duplicate is detected
     if (duplicateRecord) {
       setErrorMessage(
-        `Policy number "${effectivePolicyNumber}" already exists in the system. Please enter a unique policy number.`
+        `Policy number "${trimmedPolicyNumber}" already exists in the system. Please enter a unique policy number.`
       );
       return;
     }
@@ -545,13 +546,13 @@ function AddInsuranceRecordForm() {
       // Synchronous double-check before submission
       if (policyNumber.trim()) {
         const dupCheck = await insuranceRecordService.checkDuplicatePolicy(
-          effectivePolicyNumber,
+          trimmedPolicyNumber,
           isEditMode && editId ? Number(editId) : undefined
         );
         if (dupCheck.is_duplicate && dupCheck.record) {
           setDuplicateRecord(dupCheck.record);
           const cust = dupCheck.record.customer?.name || "another customer";
-          const msg = `Policy number "${effectivePolicyNumber}" is already registered to ${cust}. Policy numbers must be unique.`;
+          const msg = `Policy number "${trimmedPolicyNumber}" is already registered to ${cust}. Policy numbers must be unique.`;
           setPolicyNumberError(msg);
           setErrorMessage(msg);
           setSubmitting(false);
@@ -584,7 +585,7 @@ function AddInsuranceRecordForm() {
       }
 
       const payload: InsuranceRecordPayload = {
-        policy_number: effectivePolicyNumber,
+        policy_number: trimmedPolicyNumber,
         insurance_company_id: Number(selectedCompanyId) || 1,
         customer_id: selectedCustomer?.id || selectedCustomer?.customer_id,
         create_new_customer: isDifferentPerson,
@@ -660,9 +661,9 @@ function AddInsuranceRecordForm() {
       if (errorInfo.policyNumberError) {
         setPolicyNumberError(errorInfo.policyNumberError);
         // Attempt to fetch existing record context if not already loaded
-        if (!duplicateRecord && effectivePolicyNumber) {
+        if (!duplicateRecord && trimmedPolicyNumber) {
           insuranceRecordService
-            .checkDuplicatePolicy(effectivePolicyNumber, isEditMode && editId ? Number(editId) : undefined)
+            .checkDuplicatePolicy(trimmedPolicyNumber, isEditMode && editId ? Number(editId) : undefined)
             .then((res) => {
               if (res.is_duplicate && res.record) {
                 setDuplicateRecord(res.record);
@@ -923,7 +924,7 @@ function AddInsuranceRecordForm() {
                 <div className="md:col-span-2">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-700">
-                      Policy Number <span className="text-slate-400 font-normal text-xs ml-1">(Optional - auto-generated if left blank)</span>
+                      Policy Number <span className="text-red-500">*</span>
                     </label>
                     {checkingDuplicate && (
                       <span className="flex items-center gap-1.5 text-[11px] text-blue-600 font-medium">
@@ -935,6 +936,7 @@ function AddInsuranceRecordForm() {
                   <div className="relative">
                     <input
                       type="text"
+                      required
                       value={policyNumber}
                       onChange={(e) => {
                         setPolicyNumber(e.target.value);
