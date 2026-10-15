@@ -9,9 +9,6 @@ export const renewalDefaults: Partial<WhatsAppConfig> = {
 };
 const stages = [[30, "Awareness & NCB review"], [15, "Quotation & comparison"],
   [7, "Urgent follow-up"], [2, "Final reminder"], [0, "Expiry-day alert"]] as const;
-const times = [...Array.from({ length: 24 }, (_, i) => 600 + i * 5),
-  ...Array.from({ length: 18 }, (_, i) => 990 + i * 5)].map(minutes =>
-    `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`);
 
 export function RenewalReminderSettings({ value, onChange, readinessIssues }: {
   value: Partial<WhatsAppConfig>; onChange: (value: Partial<WhatsAppConfig>) => void;
@@ -39,10 +36,9 @@ export function RenewalReminderSettings({ value, onChange, readinessIssues }: {
       onChange={e => onChange({ renewal_enabled: e.target.checked })} />Enable automatic renewal reminders</label>
     <div className="grid sm:grid-cols-2 gap-4 text-xs">
       <label>Preferred daily send time
-        <select className="block w-full rounded-lg border bg-white p-2" value={value.renewal_send_time?.slice(0, 5)}
-          onChange={e => onChange({ renewal_send_time: e.target.value })}>
-          {times.map(t => <option key={t} value={t}>{Number(t.slice(0, 2)) % 12 || 12}:{t.slice(3)} {Number(t.slice(0, 2)) < 12 ? "AM" : "PM"}</option>)}
-        </select>
+        <input className="block w-full rounded-lg border bg-white p-2" type="time" step={1}
+          value={value.renewal_send_time ?? "10:30"}
+          onChange={e => onChange({ renewal_send_time: e.target.value })} />
       </label>
       <label>Daily message safety cap
         <input className="block w-full rounded-lg border bg-white p-2" type="number" min={1} max={1000}
@@ -68,8 +64,8 @@ export function RenewalReminderSettings({ value, onChange, readinessIssues }: {
           (value.renewal_stages || []).filter(d => d !== days) })} />
       {days === 0 ? "On expiry day" : `${days} days before expiry`} — {label}
     </label>)}</div>
-    <p className="text-xs text-slate-600">Business timezone: backend TIME_ZONE (default Asia/Kolkata). Sends from your selected time until 12:00 or 18:00. One reminder attempt per phone per day, at most 15 per minute. Renewed, scheduled and paid policies are excluded. Enter holiday dates above.</p>
-    <p className="text-xs text-slate-600">Save configuration before testing. The background worker must be running. Tests always use the saved Admin Test Phone and follow the same sending hours and limits.</p>
+    <p className="text-xs text-slate-600">Business timezone: backend TIME_ZONE (default Asia/Kolkata). Sends at or after your selected time on the same day. One reminder attempt per phone per day, at most 15 per minute. Renewed and scheduled policies are excluded. Enter holiday dates above.</p>
+    <p className="text-xs text-slate-600">Save configuration before testing. The background worker must be running. Tests always use the saved Admin Test Phone and follow the same timing and limits.</p>
     <div className="flex flex-wrap gap-2">
       <select aria-label="Test reminder stage" className="rounded-lg border bg-white p-2 text-xs" value={stage} onChange={e => setStage(Number(e.target.value))}>
         {stages.map(([days]) => <option key={days} value={days}>{days} day template</option>)}
